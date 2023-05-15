@@ -94,7 +94,7 @@ class VoltageCtrl_Env(gym.Env):
                        - 100*LA.norm(np.clip(self.vmin-self.state, 0, np.inf))**2)
         
         #adjust parameters of the line
-        self.network.line.x_ohm_per_km = self.network.line.x_ohm_per_km * np.random.uniform(0.8,1.2)
+        #self.network.line.x_ohm_per_km = self.network.line.x_ohm_per_km * np.random.uniform(0.9,1.1)
            
         #adjust reactive power inj at the PV bus
         for i in range(self.agentnum):
@@ -217,8 +217,11 @@ if __name__ == "__main__":
     injection_bus = np.array([18, 21, 30, 45, 53])-1
     pp_net = create_56bus()
     env = VoltageCtrl_Env(pp_net, injection_bus)
-    #env.reset(seed=2)
-    env.reset()
+    for i in range(10):
+        env.network.line.x_ohm_per_km = env.network.line.x_ohm_per_km * np.random.uniform(0.8,1.2)
+        env.reset(i)
+        print(env.network.line.x_ohm_per_km)
+        pf_res_plotly(pp_net)
     #simple_plotly(pp_net)
     pf_res_plotly(pp_net)
-    print(pp_net.res_bus.vm_pu)
+ 

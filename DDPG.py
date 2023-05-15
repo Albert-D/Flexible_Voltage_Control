@@ -9,7 +9,6 @@ import numpy as np
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 torch.set_default_device(device)
-print(f"Using {device} device")
 
 # DPPG class
 class DDPG:
@@ -71,6 +70,49 @@ class DDPG:
                 target_param.data * (1.0 - soft_tau) + param.data * soft_tau
             )
 
+    def train_step_uncertain(self, replay_buffer, batch_size,
+                   gamma=0.99,
+                   soft_tau=1e-2):
+
+        state, topology, action, last_action, reward, next_state, done = replay_buffer.sample(batch_size)
+
+        state = torch.FloatTensor(state).to(device)
+        topology = torch.FloatTensor(topology).to(device)
+        next_state = torch.FloatTensor(next_state).to(device)
+        action = torch.FloatTensor(action).to(device)
+        last_action = torch.FloatTensor(last_action).to(device)
+        reward = torch.FloatTensor(reward).unsqueeze(1).to(device)
+        done = torch.FloatTensor(np.float32(done)).unsqueeze(1).to(device)
+
+        next_action = action-self.target_policy_net(next_state, topology)    
+        target_value = self.target_value_net(next_state, next_action.detach())
+        expected_value = reward + gamma*(1.0-done)*target_value
+        
+        value = self.value_net(state, action)
+        value_loss = self.value_criterion(value, expected_value.detach())
+        
+        self.value_optimizer.zero_grad()
+        value_loss.backward()
+ 
+        self.value_optimizer.step()
+        
+        policy_loss = self.value_net(state, last_action-self.policy_net(state, topology))
+        policy_loss = -policy_loss.mean()
+        
+        self.policy_optimizer.zero_grad()
+        policy_loss.backward()
+        self.policy_optimizer.step()
+
+        for target_param, param in zip(self.target_value_net.parameters(), self.value_net.parameters()):
+            target_param.data.copy_(
+                target_param.data * (1.0 - soft_tau) + param.data*soft_tau
+            )
+
+        for target_param, param in zip(self.target_policy_net.parameters(), self.policy_net.parameters()):
+            target_param.data.copy_(
+                target_param.data * (1.0 - soft_tau) + param.data * soft_tau
+            )
+
 
 # value network
 class ValueNetwork(nn.Module):
@@ -96,16 +138,16 @@ class ReplayBuffer:
         self.buffer = []
         self.position = 0
 
-    def push(self, state, action, reward, next_state, done):
+    def push(self, state, topology, action, last_action, reward, next_state, done):
         if len(self.buffer) < self.capacity:
             self.buffer.append(None)
-        self.buffer[self.position] = (state, action, reward, next_state, done)
+        self.buffer[self.position] = (state, topology, action, last_action, reward, next_state, done)
         self.position = (self.position + 1) % self.capacity
 
     def sample(self, batch_size):
         batch = random.sample(self.buffer, batch_size)
-        state, action, reward, next_state, done = map(np.stack, zip(*batch))
-        return state, action, reward, next_state, done
+        state, topology, action, last_action, reward, next_state, done = map(np.stack, zip(*batch))
+        return state, topology, action, last_action, reward, next_state, done
 
     def __len__(self):
         return len(self.buffer)
@@ -227,13 +269,15 @@ class SafePolicyNetwork(nn.Module):
 
 # define flexible safety policy network (our policy)
 class FlexiblePolicyNet(nn.Module):
-    def __init__(self, env, obs_dim, action_dim, hidden_dim, init_w=3e-3):
+    def __init__(self, env, obs_dim, action_dim, hidden_dim, scale=0.05, init_w=3e-3):
         super(FlexiblePolicyNet, self).__init__()
 
         self.env = env
         self.hidden_dim = hidden_dim
         self.obs_dim = obs_dim
         self.action_dim = action_dim
+
+        self.scale = scale
 
         #this two upper trianglular matrixes are used to reconstruct parameters
         self.w_triangle = torch.ones((self.hidden_dim, self.hidden_dim))
@@ -245,62 +289,68 @@ class FlexiblePolicyNet(nn.Module):
 
         #define parameters of NN
         self.b = torch.rand(self.hidden_dim)
-        self.b = (self.b/torch.sum(self.b))
+        self.b = (self.b/torch.sum(self.b))*self.scale
         self.b = torch.nn.Parameter(self.b, requires_grad=True)
         
         self.c = torch.rand(self.hidden_dim)
-        self.c = (self.c/torch.sum(self.c))
+        self.c = (self.c/torch.sum(self.c))*self.scale
         self.c = torch.nn.Parameter(self.c, requires_grad=True)
         
         self.q = torch.nn.Parameter(torch.rand(action_dim, self.hidden_dim), requires_grad=True)
         self.z = torch.nn.Parameter(torch.rand(action_dim, self.hidden_dim), requires_grad=True)
 
     def forward(self, state, X):
-        input = torch.cat((state,X), dim=0)
-        input_dim = input.size(dim=0)
+        #print(state.shape, X.shape)
+        X = F.normalize(X, dim=1) * 0.05
+
+        input = torch.cat((state,X), dim=1)
+        batch_size = input.size(dim=0)
+        input_dim = input.size(dim=1)
 
         self.w_plus=torch.matmul(torch.square(self.q), self.w_triangle)
         self.w_minus=torch.matmul(-torch.square(self.z), self.w_triangle)
 
-        self.b.data = self.b.data.clamp(min=0)/torch.norm(self.b.data, 1)
-        self.c.data = self.c.data.clamp(min=0)/torch.norm(self.c.data, 1)
+        self.b.data = self.b.data.clamp(min=0)/torch.norm(self.b.data, 1)*self.scale
+        self.c.data = self.c.data.clamp(min=0)/torch.norm(self.c.data, 1)*self.scale
 
         self.b_plus=torch.matmul(-self.b, self.b_triangle) - torch.tensor(self.env.vmax)
         self.b_minus=torch.matmul(-self.b, self.b_triangle) + torch.tensor(self.env.vmin)
         
         self.nonlinear_plus = F.relu(input @ torch.ones(input_dim, self.hidden_dim) + 
-                                self.b_plus.view(1, self.hidden_dim)) @ self.w_plus.t()
+                                self.b_plus.expand(batch_size, self.hidden_dim)) @ self.w_plus.t()
         self.nonlinear_minus = F.relu(input @ (-torch.ones(input_dim, self.hidden_dim)) + 
-                                self.b_plus.view(1, self.hidden_dim)) @ self.w_minus.t()
+                                self.b_plus.expand(batch_size, self.hidden_dim)) @ self.w_minus.t()
         
         y = (self.nonlinear_plus+self.nonlinear_minus) 
 
         return y
     
-    def get_action(self, state):
+    def get_action(self, state, topology):
         state = torch.FloatTensor(state).unsqueeze(0).to(device)
-        action = self.forward(state)
-        return action.detach().numpy()[0] #return action.detach().cpu().numpy()[0] 
+        action = self.forward(state, topology)
+        return action.detach().cpu().numpy()[0] 
 
 
 if __name__ == "__main__":
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    torch.set_default_device(device)
+    print(f"Using {device} device")
 
     from Environment import *
 
     injection_bus = np.array([18, 21, 30, 45, 53])-1
     pp_net = create_56bus()
     env = VoltageCtrl_Env(pp_net, injection_bus)
-    env.reset()
+    state = env.reset()
 
     net=FlexiblePolicyNet(env=env,action_dim=env.action_dim,obs_dim=env.obs_dim,hidden_dim=10)
 
     topology = torch.cuda.FloatTensor(pp_net.line.x_ohm_per_km)
-    state = torch.cuda.FloatTensor(pp_net.res_bus.vm_pu[1].reshape(1,))
+    state = torch.cuda.FloatTensor(state[0].reshape(1,))
     print(state.shape)
     print(topology.shape)
     input = torch.cat((state, topology), dim=0)
-    b_plus = torch.matmul(-net.b, net.b_triangle) - torch.tensor(env.vmax)
-    d = input.size(dim=0)
-    x = F.relu(input @ torch.ones(d, net.hidden_dim) + b_plus.view(1, net.hidden_dim)) @ torch.matmul(torch.square(net.q), net.w_triangle).t()
+    x = net(state, topology)
     print(x)
 
