@@ -31,9 +31,9 @@ num_agent = 5
 obs_dim = env.obs_dim
 action_dim = env.action_dim
 hidden_dim = 100
-num_episodes = 200
+num_episodes = 50
 num_steps = 30  # trajetory length each episode
-batch_size = 64
+batch_size = 256
 plot = False    # if/not plot trained policy every # episodes
 
 """
@@ -41,26 +41,6 @@ Create Agent list and replay buffer
 """
 torch.manual_seed(seed)
 
-# plot policy
-def plot_policy(policy_net, episode):
-    s_array = np.zeros(30,)
-
-    a_array_baseline = np.zeros(30,)
-    a_array = np.zeros(30,)
-    for i in range(30):
-        state = torch.tensor([0.85+0.01*i])
-        s_array[i] = state
-
-        action_baseline = -(np.maximum(state-1.05, 0)-np.maximum(0.95-state, 0)).reshape((1,))
-        action = -agent_list[3].policy_net(state.reshape(1,1))
-
-        a_array_baseline[i] = action_baseline[0]
-        a_array[i] = action[0]
-        
-    plt.figure() 
-    plt.plot(s_array, a_array_baseline, label = 'Baseline')
-    plt.plot(s_array, a_array, label = 'RL')
-    plt.savefig('Policy{0}.png'.format(episode), dpi=100)
 
 agent_list = []
 replay_buffer_list = []
@@ -86,12 +66,18 @@ for i in range(num_agent):
     agent_list.append(agent)
     replay_buffer_list.append(replay_buffer)
 
+### load nn model parameter from saved model 
+for i in range(num_agent):
+    value_net_dict = torch.load(f'saved_models/value_net/Step_200_Seed_10_a{i}.pth')
+    policy_net_dict = torch.load(f'saved_models/policy_net/Step_200_Seed_10_a{i}.pth')
+
+    agent_list[i].value_net.load_state_dict(value_net_dict)
+    agent_list[i].policy_net.load_state_dict(policy_net_dict)
+
 rewards = []
 avg_reward_list = []
 
-for episode in range(num_episodes):
-    if(episode%50==0 and plot == True):
-        plot_policy(agent_list[3].policy_net, episode)
+for episode in range(num_episodes+1):
 
     state = env.reset(seed = episode)
     topology = env.network.line.x_ohm_per_km
@@ -148,4 +134,56 @@ for episode in range(num_episodes):
     print(action)
     if(episode%10==0):
         print("Episode * {} * Avg Reward is ==> {}".format(episode, avg_reward))
+    
+    ### seve nn model parameters
+    if(episode%100 == 0):
+        for i in range(num_agent):
+            value_pth = f'saved_models/value_net/Step_{episode}_Seed_{seed}_a{i}.pth'
+            policy_pth = f'saved_models/policy_net/Step_{episode}_Seed_{seed}_a{i}.pth'
+
+            torch.save(agent_list[i].value_net.state_dict(), value_pth)
+            torch.save(agent_list[i].policy_net.state_dict(), policy_pth)
+            print('value net parameters had saved to ', value_pth)
+            print('policy_net parameters had saved to', policy_pth)
+        
     avg_reward_list.append(avg_reward)
+
+## test policy
+title = ['Bus 18', 'Bus 21', 'Bus 30', 'Bus 45', 'Bus 53']
+
+fig, axs = plt.subplots(1, 5, figsize=(15,3))
+
+topology = env.network.line.x_ohm_per_km
+topology = torch.cuda.FloatTensor(topology).unsqueeze(0)
+for i in range(num_agent):
+    # plot policy
+    N = 40
+    s_array = np.zeros(N,)
+    
+    a_array_baseline = np.zeros(N,)
+    a_array = np.zeros(N,)
+    
+    for j in range(N):
+        state = torch.tensor([[0.8+0.01*j]])
+        s_array[j] = state
+
+        action_baseline = (np.maximum(state.cpu()-1.05, 0)-np.maximum(0.95-state.cpu(), 0)).reshape((1,))
+    
+        action = agent_list[i].policy_net(state, topology)
+        action = action.detach().cpu().numpy()[0]
+        
+        a_array_baseline[j] = -action_baseline[0]
+        a_array[j] = -action
+
+    axs[i].plot(12*s_array, 2*a_array_baseline, '-.', label = 'Linear')
+    axs[i].plot(12*s_array, a_array, label = 'Stable-DDPG')
+    axs[i].legend(loc='lower left')
+
+plt.show()
+
+# plot the reward 
+plt.plot(range(len(avg_reward_list)), avg_reward_list)
+plt.xlabel('Episode')
+plt.ylabel('Reward')
+plt.grid(True)
+plt.show()

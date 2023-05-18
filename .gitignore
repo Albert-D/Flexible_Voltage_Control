@@ -94,3 +94,5 @@ workspace.xml
 
 # mypy
 .mypy_cache/
+
+*.html
