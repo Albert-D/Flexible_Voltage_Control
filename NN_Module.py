@@ -147,7 +147,7 @@ class FlexiblePolicyNet(nn.Module):
 
         self.scale = scale
 
-        # this matrix used to guarantee the sum of w matrix is postive or negative
+        # this matrix used to guarantee the sum of w matrix is postive
         self.w_triangle = torch.ones((self.hidden_dim, self.hidden_dim))
         self.w_triangle = -torch.triu(self.w_triangle, diagonal=0) + torch.triu(self.w_triangle, diagonal=2)\
                         + 2*torch.eye(self.hidden_dim)
