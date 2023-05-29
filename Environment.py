@@ -18,7 +18,7 @@ from pandapower.plotting.plotly import pf_res_plotly
 class VoltageCtrl_Env(gym.Env):
     def __init__(self, pp_net, injection_bus, v0=1, vmax=1.05, vmin=0.95):
         self.network =  pp_net
-        self.obs_dim = 1
+        self.obs_dim = 56
         self.action_dim = 1
         self.injection_bus = injection_bus
         self.agentnum = len(injection_bus)
