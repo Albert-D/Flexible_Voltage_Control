@@ -96,3 +96,6 @@ workspace.xml
 .mypy_cache/
 
 *.html
+
+# add
+check_points/
