@@ -91,6 +91,8 @@ class DDPG:
 
         next_action = action-self.target_policy_net(next_state, topology)    
         target_value = self.target_value_net(next_state, next_action.detach())
+        
+        # use TD learning to update value
         expected_value = reward + gamma*(1.0-done)*target_value
         
         value = self.value_net(state, action)

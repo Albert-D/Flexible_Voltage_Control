@@ -1,5 +1,6 @@
 from Environment import *
 from DDPG import *
+from NN_Module import *
 
 import torch
 import matplotlib.pyplot as plt

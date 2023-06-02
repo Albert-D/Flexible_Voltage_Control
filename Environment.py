@@ -90,8 +90,8 @@ class VoltageCtrl_Env(gym.Env):
         
         done = False 
         
-        reward = float(-50*LA.norm(action)**2 -100*LA.norm(np.clip(self.state-self.vmax, 0, np.inf))**2
-                       - 100*LA.norm(np.clip(self.vmin-self.state, 0, np.inf))**2)
+        reward = float(-1*LA.norm(action)**2 -500*LA.norm(np.clip(self.state-self.vmax, 0, np.inf))**2
+                       - 500*LA.norm(np.clip(self.vmin-self.state, 0, np.inf))**2)
         
         #adjust parameters of the line
         #self.network.line.x_ohm_per_km = self.network.line.x_ohm_per_km * np.random.uniform(0.9,1.1)

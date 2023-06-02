@@ -121,7 +121,12 @@ class SafePolicyNetwork(nn.Module):
         
         self.b_plus=torch.matmul(-self.b, self.b_recover) - torch.tensor(self.env.vmax-0.02)
         self.b_minus=torch.matmul(-self.b, self.b_recover) + torch.tensor(self.env.vmin+0.02)
-        
+        logger.debug('--- b_plus ---')
+        logger.trace(self.b_plus)
+        logger.debug('--- state ---')
+        logger.trace(torch.matmul(state, self.select_w))
+        logger.debug('--- out ---')
+        logger.trace(torch.matmul(state, self.select_w) + self.b_plus.view(1, self.hidden_dim))
         self.nonlinear_plus = torch.matmul(F.relu(torch.matmul(state, self.select_w)
                                                   + self.b_plus.view(1, self.hidden_dim)),
                                            torch.transpose(self.w_plus, 0, 1))
@@ -174,24 +179,29 @@ class FlexiblePolicyNet(nn.Module):
 
         input = torch.cat((state,X), dim=1)
         #input = state
-        batch_size = input.size(dim=0)
+        logger.trace(input)
         input_dim = input.size(dim=1)
 
-        self.w_plus=torch.matmul(torch.square(self.q), self.w_triangle)
-        self.w_minus=torch.matmul(-torch.square(self.z), self.w_triangle)
+        self.w_plus = torch.square(self.q) @ self.w_triangle
+        self.w_minus = -torch.square(self.q) @ self.w_triangle
 
-        self.b.data = self.b.data.clamp(min=0)/torch.norm(self.b.data, 1)*self.scale
-        self.c.data = self.c.data.clamp(min=0)/torch.norm(self.c.data, 1)*self.scale
+        self.b.data = self.b.data.clamp(min=0) / torch.norm(self.b.data, 1) * self.scale
+        self.c.data = self.c.data.clamp(min=0) / torch.norm(self.c.data, 1) * self.scale
 
-        self.b_plus=torch.matmul(-self.b, self.b_triangle) - torch.tensor(self.env.vmax)
-        self.b_minus=torch.matmul(-self.c, self.b_triangle) + torch.tensor(self.env.vmin)
+        self.b_plus=torch.matmul(-self.b, self.b_triangle) - torch.tensor(self.env.vmax - 0.02)
+        self.b_minus=torch.matmul(-self.b, self.b_triangle) + torch.tensor(self.env.vmin + 0.02)
+        logger.debug('--- b_plus ---')
+        logger.trace(self.b_plus)
+        logger.debug('--- state ---')
+        logger.trace(input @ torch.eye(input_dim, self.hidden_dim))
+        logger.debug('--- out ---')
+        logger.trace(input @ torch.eye(input_dim, self.hidden_dim) + self.b_plus.view(1, self.hidden_dim))
+        self.nonlinear_plus = F.relu(input @ torch.ones(input_dim, self.hidden_dim) + 
+                                self.b_plus.view(1, self.hidden_dim)) @ self.w_plus.t()
+        self.nonlinear_minus = F.relu(input @ (-torch.ones(input_dim, self.hidden_dim)) + 
+                                self.b_minus.view(1, self.hidden_dim)) @ self.w_minus.t()
         
-        self.nonlinear_plus = F.relu(input @ torch.eye(input_dim, self.hidden_dim) + 
-                                self.b_plus.expand(batch_size, self.hidden_dim)) @ self.w_plus.t()
-        self.nonlinear_minus = F.relu(input @ (-torch.eye(input_dim, self.hidden_dim)) + 
-                                self.b_minus.expand(batch_size, self.hidden_dim)) @ self.w_minus.t()
-        
-        y = self.nonlinear_plus+self.nonlinear_minus
+        y = self.nonlinear_plus + self.nonlinear_minus
 
         return y
     
@@ -217,6 +227,28 @@ def plot_net(net, topology):
     ax.plot(s_array, a_array, label = 'RL')
     plt.show()
 
+def plot_safe_net(net):
+    fig, ax = plt.subplots()
+    N = 40
+    s_array = np.zeros(N,)
+    a_array_baseline = np.zeros(N,)
+    a_array = np.zeros(N,)
+
+    for j in range(N):
+        state = torch.tensor([[0.8+0.01*j]])
+        s_array[j] = state
+        action_baseline = (np.maximum(state.cpu()-1.05, 0)-np.maximum(0.95-state.cpu(), 0)).reshape((1,))
+
+        action = net(state)
+        action = action.detach().cpu().numpy()[0]
+
+        a_array_baseline[j] = -action_baseline[0]
+        a_array[j] = -action
+    
+    ax.plot(s_array, a_array_baseline, label = 'Baseline')
+    ax.plot(s_array, a_array, label = 'RL')
+    plt.show()
+
 if __name__ == "__main__":
 
     logger.info(f"Using {device} device")
@@ -228,15 +260,18 @@ if __name__ == "__main__":
     env = VoltageCtrl_Env(pp_net, injection_bus)
     state = env.reset()
 
-    net=PolicyNetwork(env=env,action_dim=env.action_dim,obs_dim=env.obs_dim,hidden_dim=100)
+    net=FlexiblePolicyNet(env=env,action_dim=env.action_dim,obs_dim=env.obs_dim,hidden_dim=100)
+    safe_net=SafePolicyNetwork(env=env,action_dim=env.action_dim,obs_dim=env.obs_dim,hidden_dim=100)
 
-    topology = torch.cuda.FloatTensor(pp_net.line.x_ohm_per_km).unsqueeze(0)
+    #topology = torch.cuda.FloatTensor(pp_net.line.x_ohm_per_km).unsqueeze(0)
+    topology = torch.rand(1,55)
     state = torch.cuda.FloatTensor(state[0].reshape(1,)).unsqueeze(0)
-    logger.debug(state.shape)
-    logger.debug(topology)
-    x = net(state, topology)
 
-    for i in range(10):
-        torch.manual_seed(i)
-        net_i = FlexiblePolicyNet(env=env, action_dim=env.action_dim, obs_dim=env.obs_dim, hidden_dim=100)
-        plot_net(net, topology)
+    #plot_safe_net(safe_net)
+    net_i = FlexiblePolicyNet(env=env, action_dim=env.action_dim, obs_dim=env.obs_dim, hidden_dim=100)
+    plot_net(net_i, topology)
+
+    # for i in range(5):
+    #     torch.manual_seed(10+i)
+    #     net_i = FlexiblePolicyNet(env=env, action_dim=env.action_dim, obs_dim=env.obs_dim, hidden_dim=100)
+    #     plot_net(net_i, topology)

@@ -33,13 +33,13 @@ injection_bus = np.array([18, 21, 30, 45, 53])-1
 pp_net = create_56bus()
 env = VoltageCtrl_Env(pp_net, injection_bus)
 
-seed = 50
+seed = 0
 num_agent = 5
 obs_dim = env.obs_dim
 action_dim = env.action_dim
-hidden_dim = 100
+hidden_dim = 512
 num_episodes = 500
-num_steps = 30  # trajetory length each episode
+num_steps = 32  # trajetory length each episode
 batch_size = 256
 plot = False    # if/not plot trained policy every # episodes
 
@@ -52,7 +52,7 @@ torch.manual_seed(seed)
 fig, axs = plt.subplots(1, 5, figsize=(15,3))
 title = ['Bus 18', 'Bus 21', 'Bus 30', 'Bus 45', 'Bus 53']
 def plot_policy(agent_list, topology):
-
+    plt.cla()
     for i in range(num_agent):
         axs[i].clear()
         # plot policy
@@ -74,7 +74,7 @@ def plot_policy(agent_list, topology):
             a_array_baseline[j] = -action_baseline[0]
             a_array[j] = -action
 
-        axs[i].plot(12*s_array, 2*a_array_baseline, '-.', label = 'Linear')
+        axs[i].plot(12*s_array, a_array_baseline, '-.', label = 'Linear')
         axs[i].plot(12*s_array, a_array, label = 'Flexible-DDPG')
         axs[i].set_title(title[i])
         axs[i].legend(loc='lower left')
@@ -107,12 +107,12 @@ for i in range(num_agent):
     replay_buffer_list.append(replay_buffer)
 
 # load nn model parameter from saved model 
-for i in range(num_agent):
-    value_net_dict = torch.load(f'check_points/value_net/Step_500_Seed_50_a{i}.pth')
-    policy_net_dict = torch.load(f'check_points/policy_net/Step_500_Seed_50_a{i}.pth')
+# for i in range(num_agent):
+#     value_net_dict = torch.load(f'check_points/value_net/Step_500_Seed_0_a{i}.pth')
+#     policy_net_dict = torch.load(f'check_points/policy_net/Step_500_Seed_0_a{i}.pth')
 
-    agent_list[i].value_net.load_state_dict(value_net_dict)
-    agent_list[i].policy_net.load_state_dict(policy_net_dict)
+#     agent_list[i].value_net.load_state_dict(value_net_dict)
+#     agent_list[i].policy_net.load_state_dict(policy_net_dict)
 
 rewards = []
 avg_reward_list = []
@@ -125,7 +125,8 @@ for episode in range(num_episodes+1):
     last_action = np.zeros((num_agent,1))
     plot_policy(agent_list,torch.cuda.FloatTensor(topology).unsqueeze(0))
     if episode%50==0:
-        plt.savefig(f'check_points/policy_img/episode_{episode}.png')
+        plt.savefig(f'check_points/policy_img/seed{seed}_episode_{episode}.png')
+        logger.info(f'save policy image to check_points/policy_img/seed{seed}_episode_{episode}.png')
 
     for step in range(num_steps):
         action = []
