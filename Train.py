@@ -35,7 +35,7 @@ injection_bus = np.array([18, 21, 30, 45, 53])-1
 pp_net = create_56bus()
 env = VoltageCtrl_Env(pp_net, injection_bus)
 
-seed = 1
+seed = 0
 num_agent = 5
 obs_dim = env.obs_dim
 action_dim = env.action_dim
@@ -58,14 +58,14 @@ def plot_policy(agent_list, topology):
     for i in range(num_agent):
         axs[i].clear()
         # plot policy
-        N = 50
+        N = 40
         s_array = np.zeros(N,)
         
         a_array_baseline = np.zeros(N,)
         a_array = np.zeros(N,)
         
         for j in range(N):
-            state = torch.tensor([[0.75+0.01*j]])
+            state = torch.tensor([[0.80+0.01*j]])
             s_array[j] = state
 
             action_baseline = (np.maximum(state.cpu()-1.05, 0)-np.maximum(0.95-state.cpu(), 0)).reshape((1,))
@@ -121,7 +121,7 @@ rewards = []
 avg_reward_list = []
 
 for episode in range(num_episodes+1):
-    logger.info('------ now training episode {}  ------', episode)
+    #logger.info('------ now training episode {}  ------', episode)
     state, topology = env.reset(seed = episode)
     #topology = env.network.line.x_ohm_per_km
     episode_reward = 0
@@ -152,7 +152,8 @@ for episode in range(num_episodes+1):
         # execute action a_t and observe reward r_t and observe next state s_{t+1}
         next_state, topology, reward, done = env.step_uncertain(action)
 
-        if(np.min(next_state)<0.75): #if voltage violation > 25%, episode ends.
+        if(np.min(next_state) < 0.75 or np.max(next_state) > 1.25): #if voltage violation > 25%, episode ends.
+            logger.warning('step {} break, min_state is {}, max_state is {}', step, np.min(next_state), np.max(next_state))
             break
         else:
             for i in range(num_agent): 
@@ -171,6 +172,7 @@ for episode in range(num_episodes+1):
                                                 batch_size=batch_size)
 
             if(done):
+                logger.success('episode {} done at step {}', episode, step)
                 episode_reward += reward  
                 break
             else:
@@ -178,7 +180,8 @@ for episode in range(num_episodes+1):
                 episode_reward += reward    
 
         last_action = np.copy(action)
-
+    if not done:
+        logger.info('episode {} finish with entire step!', episode)
     rewards.append(episode_reward)
     avg_reward = np.mean(rewards[-40:])
     logger.debug(action)

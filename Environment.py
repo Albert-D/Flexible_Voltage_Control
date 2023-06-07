@@ -14,6 +14,7 @@ from pandapower.plotting.plotly import simple_plotly
 from pandapower.plotting.plotly import vlevel_plotly
 from pandapower.plotting.plotly import pf_res_plotly
 
+from loguru import logger
 
 class VoltageCtrl_Env(gym.Env):
     def __init__(self, pp_net, injection_bus, v0=1, vmax=1.05, vmin=0.95):
@@ -92,7 +93,7 @@ class VoltageCtrl_Env(gym.Env):
         
         done = False 
         
-        reward = float(-5.0*LA.norm(action) -100*LA.norm(np.clip(self.state-self.vmax, 0, np.inf))
+        reward = float(-1*LA.norm(action) -100*LA.norm(np.clip(self.state-self.vmax, 0, np.inf))
                        - 100*LA.norm(np.clip(self.vmin-self.state, 0, np.inf)))
         
         #adjust parameters of the line
@@ -116,9 +117,11 @@ class VoltageCtrl_Env(gym.Env):
     def reset(self, seed=1): #sample different initial volateg conditions during training
         np.random.seed(seed)
         senario = np.random.choice([0, 1])
+        #senario = 0
         self.network.line.x_ohm_per_km = self.topology_init * np.random.uniform(0.8,1.2)
         topology = self.network.line.x_ohm_per_km
-        if(senario == 0):#low voltage 
+        if(senario == 0):#low voltage
+            logger.info('this episode is start at low voltage!')
            # Low voltage
             self.network.sgen['p_mw'] = 0.0
             self.network.sgen['q_mvar'] = 0.0
@@ -132,6 +135,7 @@ class VoltageCtrl_Env(gym.Env):
             self.network.sgen.at[5, 'p_mw'] = -0.4*np.random.uniform(2, 8)
 
         elif(senario == 1): #high voltage 
+            logger.info('this episode is start at high voltage!')
             self.network.sgen['p_mw'] = 0.0
             self.network.sgen['q_mvar'] = 0.0
             self.network.load['p_mw'] = 0.0
