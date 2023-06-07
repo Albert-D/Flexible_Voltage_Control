@@ -33,6 +33,8 @@ class VoltageCtrl_Env(gym.Env):
         self.gen0_q = np.copy(self.network.sgen['q_mvar'])
         
         self.state = np.ones(self.agentnum, )
+        self.topology_init = pp_net.line.x_ohm_per_km
+
     
     #this function is used to test the policy
     def step(self, action):
@@ -90,8 +92,8 @@ class VoltageCtrl_Env(gym.Env):
         
         done = False 
         
-        reward = float(-1*LA.norm(action)**2 -500*LA.norm(np.clip(self.state-self.vmax, 0, np.inf))**2
-                       - 500*LA.norm(np.clip(self.vmin-self.state, 0, np.inf))**2)
+        reward = float(-5.0*LA.norm(action) -100*LA.norm(np.clip(self.state-self.vmax, 0, np.inf))
+                       - 100*LA.norm(np.clip(self.vmin-self.state, 0, np.inf)))
         
         #adjust parameters of the line
         #self.network.line.x_ohm_per_km = self.network.line.x_ohm_per_km * np.random.uniform(0.9,1.1)
@@ -114,6 +116,8 @@ class VoltageCtrl_Env(gym.Env):
     def reset(self, seed=1): #sample different initial volateg conditions during training
         np.random.seed(seed)
         senario = np.random.choice([0, 1])
+        self.network.line.x_ohm_per_km = self.topology_init * np.random.uniform(0.8,1.2)
+        topology = self.network.line.x_ohm_per_km
         if(senario == 0):#low voltage 
            # Low voltage
             self.network.sgen['p_mw'] = 0.0
@@ -156,7 +160,7 @@ class VoltageCtrl_Env(gym.Env):
         
         pp.runpp(self.network, algorithm='bfsw')
         self.state = self.network.res_bus.iloc[self.injection_bus].vm_pu.to_numpy()
-        return self.state
+        return self.state, topology
     
     def reset0(self, seed=1): #reset voltage to nominal value
         
@@ -217,11 +221,17 @@ if __name__ == "__main__":
     injection_bus = np.array([18, 21, 30, 45, 53])-1
     pp_net = create_56bus()
     env = VoltageCtrl_Env(pp_net, injection_bus)
+    high_volt = 0
+    low_volt = 0
+    print(env.network.line.x_ohm_per_km)
     for i in range(10):
-        env.network.line.x_ohm_per_km = env.network.line.x_ohm_per_km * np.random.uniform(0.8,1.2)
-        env.reset(i)
-        print(env.network.line.x_ohm_per_km)
-        pf_res_plotly(pp_net)
+        #env.network.line.x_ohm_per_km = env.network.line.x_ohm_per_km * np.random.uniform(0.8,1.2)
+        state, s = env.reset(i)
+        #print(env.network.line.x_ohm_per_km)
+        print(s)
+        # pf_res_plotly(pp_net)
     #simple_plotly(pp_net)
-    pf_res_plotly(pp_net)
+    # pf_res_plotly(pp_net)
+    print(f'total high senario are {high_volt}')
+    print(f'total low senario are {low_volt}')
  

@@ -3,6 +3,8 @@ from DDPG import *
 from NN_Module import *
 import sys
 from loguru import logger
+import os
+from datetime import date
 
 import torch
 import matplotlib.pyplot as plt
@@ -33,7 +35,7 @@ injection_bus = np.array([18, 21, 30, 45, 53])-1
 pp_net = create_56bus()
 env = VoltageCtrl_Env(pp_net, injection_bus)
 
-seed = 0
+seed = 1
 num_agent = 5
 obs_dim = env.obs_dim
 action_dim = env.action_dim
@@ -56,14 +58,14 @@ def plot_policy(agent_list, topology):
     for i in range(num_agent):
         axs[i].clear()
         # plot policy
-        N = 40
+        N = 50
         s_array = np.zeros(N,)
         
         a_array_baseline = np.zeros(N,)
         a_array = np.zeros(N,)
         
         for j in range(N):
-            state = torch.tensor([[0.8+0.01*j]])
+            state = torch.tensor([[0.75+0.01*j]])
             s_array[j] = state
 
             action_baseline = (np.maximum(state.cpu()-1.05, 0)-np.maximum(0.95-state.cpu(), 0)).reshape((1,))
@@ -86,11 +88,12 @@ replay_buffer_list = []
 
 ### initilize network and DDPG
 for i in range(num_agent):
+    topology_net = TopologyNet(topology_dim=55, output_dim=1, hidden_dim=100)
     value_net  = ValueNetwork(obs_dim=1, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
-    policy_net = FlexiblePolicyNet(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
+    policy_net = FlexiblePolicyNet(env=env, topology_net=topology_net, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
 
     target_value_net  = ValueNetwork(obs_dim=1, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
-    target_policy_net = FlexiblePolicyNet(env=env, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
+    target_policy_net = FlexiblePolicyNet(env=env, topology_net=topology_net, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
 
     for target_param, param in zip(target_value_net.parameters(), value_net.parameters()):
         target_param.data.copy_(param.data)
@@ -108,8 +111,8 @@ for i in range(num_agent):
 
 # load nn model parameter from saved model 
 # for i in range(num_agent):
-#     value_net_dict = torch.load(f'check_points/value_net/Step_500_Seed_0_a{i}.pth')
-#     policy_net_dict = torch.load(f'check_points/policy_net/Step_500_Seed_0_a{i}.pth')
+#     value_net_dict = torch.load(f'check_points/value_net/2023-06-06/Step_500_Seed_1_a{i}.pth')
+#     policy_net_dict = torch.load(f'check_points/policy_net/2023-06-06/Step_500_Seed_1_a{i}.pth')
 
 #     agent_list[i].value_net.load_state_dict(value_net_dict)
 #     agent_list[i].policy_net.load_state_dict(policy_net_dict)
@@ -119,14 +122,17 @@ avg_reward_list = []
 
 for episode in range(num_episodes+1):
     logger.info('------ now training episode {}  ------', episode)
-    state = env.reset(seed = episode)
-    topology = env.network.line.x_ohm_per_km
+    state, topology = env.reset(seed = episode)
+    #topology = env.network.line.x_ohm_per_km
     episode_reward = 0
     last_action = np.zeros((num_agent,1))
     plot_policy(agent_list,torch.cuda.FloatTensor(topology).unsqueeze(0))
     if episode%50==0:
-        plt.savefig(f'check_points/policy_img/seed{seed}_episode_{episode}.png')
-        logger.info(f'save policy image to check_points/policy_img/seed{seed}_episode_{episode}.png')
+        today = date.today()
+        if not os.path.exists(f'check_points/policy_img/{today}/'):
+            os.makedirs(f'check_points/policy_img/{today}/')
+        plt.savefig(f'check_points/policy_img/{today}/seed{seed}_episode_{episode}.png')
+        logger.info(f'save policy image to check_points/policy_img/{today}/seed{seed}_episode_{episode}.png')
 
     for step in range(num_steps):
         action = []
@@ -182,48 +188,21 @@ for episode in range(num_episodes+1):
     ### save nn model parameters
     if(episode%100 == 0):
         for i in range(num_agent):
-            value_pth = f'check_points/value_net/Step_{episode}_Seed_{seed}_a{i}.pth'
-            policy_pth = f'check_points/policy_net/Step_{episode}_Seed_{seed}_a{i}.pth'
+            today = date.today()
+            value_pth = f'check_points/value_net/{today}/'
+            policy_pth = f'check_points/policy_net/{today}/'
+            if not os.path.exists(value_pth): 
+                os.makedirs(value_pth)
+            if not os.path.exists(policy_pth):
+                os.makedirs(policy_pth)
 
-            torch.save(agent_list[i].value_net.state_dict(), value_pth)
-            torch.save(agent_list[i].policy_net.state_dict(), policy_pth)
-            logger.info('value net parameters had saved to {}', value_pth)
-            logger.info('policy_net parameters had saved to {}', policy_pth)
+            torch.save(agent_list[i].value_net.state_dict(), value_pth + f'Step_{episode}_Seed_{seed}_a{i}.pth')
+            torch.save(agent_list[i].policy_net.state_dict(), policy_pth + f'Step_{episode}_Seed_{seed}_a{i}.pth')
+            logger.info('value net parameters had saved to {}', value_pth + f'Step_{episode}_Seed_{seed}_a{i}.pth')
+            logger.info('policy_net parameters had saved to {}', policy_pth + f'Step_{episode}_Seed_{seed}_a{i}.pth')
         
     avg_reward_list.append(avg_reward)
 
-## test policy
-title = ['Bus 18', 'Bus 21', 'Bus 30', 'Bus 45', 'Bus 53']
-
-fig, axs = plt.subplots(1, 5, figsize=(15,3))
-
-topology = env.network.line.x_ohm_per_km
-topology = torch.cuda.FloatTensor(topology).unsqueeze(0)
-for i in range(num_agent):
-    # plot policy
-    N = 40
-    s_array = np.zeros(N,)
-    
-    a_array_baseline = np.zeros(N,)
-    a_array = np.zeros(N,)
-    
-    for j in range(N):
-        state = torch.tensor([[0.8+0.01*j]])
-        s_array[j] = state
-
-        action_baseline = (np.maximum(state.cpu()-1.05, 0)-np.maximum(0.95-state.cpu(), 0)).reshape((1,))
-    
-        action = agent_list[i].policy_net(state, topology)
-        action = action.detach().cpu().numpy()[0]
-        
-        a_array_baseline[j] = -action_baseline[0]
-        a_array[j] = -action
-
-    axs[i].plot(12*s_array, 2*a_array_baseline, '-.', label = 'Linear')
-    axs[i].plot(12*s_array, a_array, label = 'Stable-DDPG')
-    axs[i].legend(loc='lower left')
-
-plt.show()
 
 # plot the reward 
 plt.plot(range(len(avg_reward_list)), avg_reward_list)
