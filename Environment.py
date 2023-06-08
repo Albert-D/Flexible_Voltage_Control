@@ -17,7 +17,7 @@ from pandapower.plotting.plotly import pf_res_plotly
 from loguru import logger
 
 class VoltageCtrl_Env(gym.Env):
-    def __init__(self, pp_net, injection_bus, v0=1, vmax=1.05, vmin=0.95):
+    def __init__(self, pp_net, injection_bus, v0=1, vmax=1.05, vmin=0.95 ,v_std = 1.0):
         self.network =  pp_net
         self.obs_dim = 56
         self.action_dim = 1
@@ -26,6 +26,7 @@ class VoltageCtrl_Env(gym.Env):
         self.v0 = v0 
         self.vmax = vmax
         self.vmin = vmin
+        self.v_std = v_std
         
         self.load0_p = np.copy(self.network.load['p_mw'])
         self.load0_q = np.copy(self.network.load['q_mvar'])
@@ -93,8 +94,8 @@ class VoltageCtrl_Env(gym.Env):
         
         done = False 
         
-        reward = float(-1*LA.norm(action) -100*LA.norm(np.clip(self.state-self.vmax, 0, np.inf))
-                       - 100*LA.norm(np.clip(self.vmin-self.state, 0, np.inf)))
+        reward = float(-1*LA.norm(action) -100*LA.norm(np.clip(self.state-(self.vmax-0.03), 0, np.inf))
+                       - 100*LA.norm(np.clip((self.vmin+0.03)-self.state, 0, np.inf)))
         
         #adjust parameters of the line
         #self.network.line.x_ohm_per_km = self.network.line.x_ohm_per_km * np.random.uniform(0.9,1.1)
@@ -122,7 +123,6 @@ class VoltageCtrl_Env(gym.Env):
         topology = self.network.line.x_ohm_per_km
         if(senario == 0):#low voltage
             logger.info('this episode is start at low voltage!')
-           # Low voltage
             self.network.sgen['p_mw'] = 0.0
             self.network.sgen['q_mvar'] = 0.0
             self.network.load['p_mw'] = 0.0
@@ -164,7 +164,7 @@ class VoltageCtrl_Env(gym.Env):
         
         pp.runpp(self.network, algorithm='bfsw')
         self.state = self.network.res_bus.iloc[self.injection_bus].vm_pu.to_numpy()
-        return self.state, topology
+        return self.state, topology, senario
     
     def reset0(self, seed=1): #reset voltage to nominal value
         

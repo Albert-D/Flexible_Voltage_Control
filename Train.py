@@ -35,7 +35,7 @@ injection_bus = np.array([18, 21, 30, 45, 53])-1
 pp_net = create_56bus()
 env = VoltageCtrl_Env(pp_net, injection_bus)
 
-seed = 0
+seed = 6
 num_agent = 5
 obs_dim = env.obs_dim
 action_dim = env.action_dim
@@ -85,6 +85,8 @@ def plot_policy(agent_list, topology):
 
 agent_list = []
 replay_buffer_list = []
+high_buffer_list = []
+low_buffer_list = []
 
 ### initilize network and DDPG
 for i in range(num_agent):
@@ -105,14 +107,19 @@ for i in range(num_agent):
                  target_policy_net=target_policy_net, target_value_net=target_value_net)
     
     replay_buffer = ReplayBuffer(capacity=1000000)
+    high_buffer = ReplayBuffer(capacity=1000000)
+    low_buffer = ReplayBuffer(capacity=1000000)
     
     agent_list.append(agent)
     replay_buffer_list.append(replay_buffer)
+    high_buffer_list.append(high_buffer)
+    low_buffer_list.append(low_buffer)
+    
 
 # load nn model parameter from saved model 
 # for i in range(num_agent):
-#     value_net_dict = torch.load(f'check_points/value_net/2023-06-06/Step_500_Seed_1_a{i}.pth')
-#     policy_net_dict = torch.load(f'check_points/policy_net/2023-06-06/Step_500_Seed_1_a{i}.pth')
+#     value_net_dict = torch.load(f'check_points/value_net/2023-06-08/Step_500_Seed_5_a{i}.pth')
+#     policy_net_dict = torch.load(f'check_points/policy_net/2023-06-08/Step_500_Seed_5_a{i}.pth')
 
 #     agent_list[i].value_net.load_state_dict(value_net_dict)
 #     agent_list[i].policy_net.load_state_dict(policy_net_dict)
@@ -122,7 +129,7 @@ avg_reward_list = []
 
 for episode in range(num_episodes+1):
     #logger.info('------ now training episode {}  ------', episode)
-    state, topology = env.reset(seed = episode)
+    state, topology, senario = env.reset(seed = episode)
     #topology = env.network.line.x_ohm_per_km
     episode_reward = 0
     last_action = np.zeros((num_agent,1))
@@ -143,7 +150,7 @@ for episode in range(num_episodes+1):
             action_agent = agent_list[i].policy_net(state_i, topology)
             action_agent = action_agent.detach().cpu().numpy()[0] + np.random.normal(0, 0.05)
             logger.trace(action_agent)
-            action_agent = np.clip(action_agent, -0.3, 0.3)
+            action_agent = np.clip(action_agent, -0.5, 0.5)
             action.append(action_agent)
 
         # PI policy    
@@ -165,11 +172,18 @@ for episode in range(num_episodes+1):
                 # store transition (s_t, a_t, r_t, s_{t+1}) in R
                 replay_buffer_list[i].push(state_buffer, topology, action_buffer, last_action_buffer,
                                             reward, next_state_buffer, done)
-
+                
                 # update both critic and actor network
                 if len(replay_buffer_list[i]) > batch_size:
                     agent_list[i].train_step_uncertain(replay_buffer=replay_buffer_list[i], 
                                                 batch_size=batch_size)
+                    
+                if senario == 0:    # low voltage
+                    low_buffer_list[i].push(state_buffer, topology, action_buffer, last_action_buffer,
+                                            reward, next_state_buffer, done)
+                if senario == 1:    # high voltage
+                    high_buffer_list[i].push(state_buffer, topology, action_buffer, last_action_buffer,
+                                            reward, next_state_buffer, done)
 
             if(done):
                 logger.success('episode {} done at step {}', episode, step)
@@ -208,6 +222,7 @@ for episode in range(num_episodes+1):
 
 
 # plot the reward 
+fig, axs = plt.subplots(1, 1)
 plt.plot(range(len(avg_reward_list)), avg_reward_list)
 plt.xlabel('Episode')
 plt.ylabel('Reward')

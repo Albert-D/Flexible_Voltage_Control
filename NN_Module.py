@@ -277,7 +277,7 @@ if __name__ == "__main__":
     injection_bus = np.array([18, 21, 30, 45, 53])-1
     pp_net = create_56bus()
     env = VoltageCtrl_Env(pp_net, injection_bus)
-    state, topology = env.reset()
+    state, topology, senario = env.reset()
 
     topology = torch.cuda.FloatTensor(topology).unsqueeze(0)
     topology = topology.expand(64,55)
@@ -298,8 +298,8 @@ if __name__ == "__main__":
 
     logger.success(y)
 
-    for i in range(5):
-        torch.manual_seed(i)
-        topology_net = TopologyNet(topology_dim=55, output_dim=1, hidden_dim=50)
-        net = FlexiblePolicyNet(env=env,topology_net=topology_net, action_dim=env.action_dim, obs_dim=env.obs_dim, hidden_dim=100)
-        plot_net(net, topology)
+    # for i in range(5):
+    #     torch.manual_seed(i)
+    #     topology_net = TopologyNet(topology_dim=55, output_dim=1, hidden_dim=50)
+    #     net = FlexiblePolicyNet(env=env,topology_net=topology_net, action_dim=env.action_dim, obs_dim=env.obs_dim, hidden_dim=100)
+    #     plot_net(net, topology)
