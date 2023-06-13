@@ -48,8 +48,8 @@ class VoltageCtrl_Env(gym.Env):
                        - 100*LA.norm(np.clip(self.vmin-self.state, 0, np.inf))**2)
         
         # state-transition dynamics
-        for i in range(len(self.injection_bus)):
-            self.network.sgen.at[i+1, 'q_mvar'] = action[i] 
+        for i in range(self.agentnum):
+            self.network.sgen.at[i, 'q_mvar'] = action[i] 
 
         pp.runpp(self.network, algorithm='bfsw', init = 'dc')
         
@@ -94,17 +94,23 @@ class VoltageCtrl_Env(gym.Env):
         
         done = False 
         
-        reward = float(-1*LA.norm(action) -100*LA.norm(np.clip(self.state-(self.vmax-0.03), 0, np.inf))
-                       - 100*LA.norm(np.clip((self.vmin+0.03)-self.state, 0, np.inf)))
-        
-        #adjust parameters of the line
-        #self.network.line.x_ohm_per_km = self.network.line.x_ohm_per_km * np.random.uniform(0.9,1.1)
+        # adjust parameters of the line
+        self.network.line.x_ohm_per_km = self.topology_init * np.random.uniform(0.8,1.2)
            
         #adjust reactive power inj at the PV bus
         for i in range(self.agentnum):
             self.network.sgen.at[i, 'q_mvar'] = action[i] 
 
         pp.runpp(self.network, algorithm='bfsw', init = 'dc')
+
+        reward = float(-25*LA.norm(action) -100*LA.norm(np.clip(self.state-(self.vmax-0.04), 0, np.inf))
+            - 100*LA.norm(np.clip((self.vmin+0.04)-self.state, 0, np.inf)))
+        
+        agent_num = len(self.injection_bus)
+        reward_sep = np.zeros(agent_num, )
+        for i in range(agent_num):
+            reward_sep[i] = float(-25*LA.norm(action[i]) -50*LA.norm(np.clip(self.state[i]-(self.vmax-0.04), 0, np.inf))
+                           - 50*LA.norm(np.clip((self.vmin+0.04)-self.state[i], 0, np.inf)))    
         
         self.state = self.network.res_bus.iloc[self.injection_bus].vm_pu.to_numpy()
         state_all = self.network.res_bus.vm_pu.to_numpy()
@@ -113,7 +119,7 @@ class VoltageCtrl_Env(gym.Env):
         if(np.min(self.state) > 0.9499 and np.max(self.state)< 1.0501):
             done = True
         
-        return self.state, topology, reward, done
+        return self.state, topology, reward, reward_sep, done
     
     def reset(self, seed=1): #sample different initial volateg conditions during training
         np.random.seed(seed)

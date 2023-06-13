@@ -5,6 +5,14 @@ from NN_Module import *
 import torch
 import matplotlib.pyplot as plt
 
+from loguru import logger
+
+### a simple logger
+logger.remove()
+logger.add(sys.stderr, level='INFO')
+
+env_seed = 12
+
 agent_num = 5
 agent_policy_net = []
 
@@ -13,47 +21,56 @@ injection_bus = np.array([18, 21, 30, 45, 53])-1
 pp_net = create_56bus()
 env = VoltageCtrl_Env(pp_net, injection_bus)
 
+state, topology, senario = env.reset(seed=env_seed)
+logger.info(state.shape)
+logger.info(topology.shape)
+topology = torch.cuda.FloatTensor(topology).unsqueeze(0)
+
 # plot policy
-def plot_policy(policy_net, episode):
-    s_array = np.zeros(30,)
-    topology = env.network.line.x_ohm_per_km
-    topology = torch.cuda.FloatTensor(topology).unsqueeze(0)
-
-    a_array_baseline = np.zeros(30,)
-    a_array = np.zeros(30,)
-    for i in range(30):
-        state = torch.tensor([[0.85+0.01*i]])
-        s_array[i] = state
-
-        action_baseline = -(np.maximum(state.cpu()-1.05, 0)-np.maximum(0.95-state.cpu(), 0)).reshape((1,))
-        action = policy_net(state, topology)
-
-        a_array_baseline[i] = action_baseline[0]
-        a_array[i] = action[0]
+def plot_policy(policy_net, topology):
+    fig, axs = plt.subplots(1, 5, figsize=(15,3))
+    title = ['Bus 18', 'Bus 21', 'Bus 30', 'Bus 45', 'Bus 53']
+    for i in range(5):
+        axs[i].clear()
+        # plot policy
+        N = 40
+        s_array = np.zeros(N,)
         
-    plt.figure() 
-    plt.plot(s_array, a_array_baseline, label = 'Baseline')
-    plt.plot(s_array, a_array, label = 'RL')
-    plt.savefig('Policy{0}.png'.format(episode), dpi=100)
+        a_array_baseline = np.zeros(N,)
+        a_array = np.zeros(N,)
+        
+        for j in range(N):
+            state = torch.tensor([[0.80+0.01*j]])
+            s_array[j] = state
+
+            action_baseline = (np.maximum(state.cpu()-1.05, 0)-np.maximum(0.95-state.cpu(), 0)).reshape((1,))
+        
+            action = policy_net[i](state, topology)
+            action = action.detach().cpu().numpy()[0]
+            
+            a_array_baseline[j] = -action_baseline[0]
+            a_array[j] = -action
+
+        axs[i].plot(12*s_array, a_array_baseline, '-.', label = 'Linear')
+        axs[i].plot(12*s_array, a_array, label = 'Flexible-DDPG')
+        axs[i].set_title(title[i])
+        axs[i].legend(loc='lower left')
 
 ### load nn model parameter from saved model 
 for i in range(agent_num):
-    policy_net = FlexiblePolicyNet(env=env, obs_dim=1, action_dim=1, hidden_dim=100).to(device)
+    topology_net = TopologyNet(topology_dim=55, output_dim=1, hidden_dim=100)
+    policy_net = FlexiblePolicyNet(env=env, topology_net=topology_net, obs_dim=1, action_dim=1, hidden_dim=512).to(device)
     agent_policy_net.append(policy_net)
 
 for i in range(agent_num):
-    value_net_dict = torch.load(f'saved_models/value_net/Step_400_Seed_10_a{i}.pth')
-    policy_net_dict = torch.load(f'saved_models/policy_net/Step_400_Seed_10_a{i}.pth')
+    value_net_dict = torch.load(f'check_points/value_net/2023-06-08/Step_200_Seed_6_a{i}.pth')
+    policy_net_dict = torch.load(f'check_points/policy_net/2023-06-08/Step_200_Seed_6_a{i}.pth')
 
     agent_policy_net[i].load_state_dict(policy_net_dict)
 
-plot_policy(agent_policy_net[1], 100)
+plot_policy(agent_policy_net, topology)
 plt.show()
 
-state = env.reset(seed=10)
-topology = env.network.line.x_ohm_per_km
-print(state, topology)
-topology = torch.cuda.FloatTensor(topology).unsqueeze(0)
 episode_reward = 0
 episode_control = 0
 voltage = []
@@ -69,7 +86,6 @@ for t in range(100):
         action_agent = action_agent.detach().cpu().numpy()[0]
         action.append(action_agent)
     
-    print(action)
     action = last_action - np.asarray(action)
     
     last_action = np.copy(action)
@@ -91,9 +107,50 @@ for t in range(100):
 voltage_RL = np.asarray(voltage)
 q_RL =  np.asarray(q)
 cost_RL =  np.asarray(cost)
-print(voltage_RL)
-print(q)
-print(cost_RL)
+
+fig, ax = plt.subplots()
+for i in range(agent_num):
+    ax.plot(q_RL[:,i])
+#ax.plot(cost_RL)
+plt.show()
+
+### test the base line controller
+state, topology, senario = env.reset(seed=env_seed)
+episode_reward = 0
+episode_control = 0
+num_agent = 5
+voltage = []
+q = []
+cost = []
+
+last_action = np.zeros((num_agent,1))
+
+for t in range(100):
+    state1 = np.asarray(state-env.vmax)
+    state2 = np.asarray(env.vmin-state)
+    d_v = (np.maximum(state1, 0)-np.maximum(state2, 0)).reshape((num_agent,1))
+    
+    action = (last_action - d_v)
+    
+    last_action = np.copy(action)
+    
+    next_state, reward, done = env.step(action)
+
+    voltage.append(state)
+
+    q.append(action)
+
+    state = next_state
+    
+    episode_reward += reward
+    
+    cost.append(-reward)
+    
+    episode_control += LA.norm(action, 2)**2
+
+voltage_baseline = np.asarray(voltage)
+q_baseline =  np.asarray(q)
+cost_baseline =  np.asarray(cost)
 
 index = [0, 1, 3] 
 labels = ['Bus 18 (Linear)', 'Bus 18 (Flexible-DDPG)', 
@@ -101,16 +158,17 @@ labels = ['Bus 18 (Linear)', 'Bus 18 (Flexible-DDPG)',
           'Bus 45 (Linear)', 'Bus 45 (Flexible-DDPG)']
 colors = ['b', 'r', 'c']
 
-f = plt.figure(figsize=(4, 4))
+f = plt.figure(figsize=(8, 8))
 ax = f.add_subplot(111)
 
 for i in range(len(index)):
     ax.plot(12*voltage_RL[:, index[i]], color = colors[i], label = labels[2*i+1])
+    ax.plot(12*voltage_baseline[:, index[i]], '-.', color = colors[i], label = labels[2*i])
 
 ax.legend(loc = 'upper right')
 ax.axhline(y=12.6, color='k', linestyle='--', label = 'Upper bound')
 ax.axhline(y=11.4, color='k', linestyle='--', label = 'Lower bound')
-ax.set_xlim([0, 60])
+ax.set_xlim([0, 100])
 ax.set_ylim([10, 14])
 ax.set_yticks([10, 11, 12, 13, 14])
 ax.set_ylabel('Bus voltage (kV)')

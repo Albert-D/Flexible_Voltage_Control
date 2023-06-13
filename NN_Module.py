@@ -35,6 +35,43 @@ class ValueNetwork(nn.Module):
         x = self.linear3(x)
         return x
     
+# Q1-Q2-Critic Neural Network for TD3
+class Q_Network(nn.Module):
+    def __init__(self, obs_dim, action_dim, hidden_dim, init_w=3e-3):
+        super(Q_Network, self).__init__()
+
+        # Q1 architecture
+        self.l1 = nn.Linear(obs_dim + action_dim, hidden_dim)
+        self.l2 = nn.Linear(hidden_dim, hidden_dim)
+        self.l3 = nn.Linear(hidden_dim, 1)
+
+        # Q2 architecture
+        self.l4 = nn.Linear(obs_dim + action_dim, hidden_dim)
+        self.l5 = nn.Linear(hidden_dim, hidden_dim)
+        self.l6 = nn.Linear(hidden_dim, 1)
+
+    # x -- state, u -- action
+    def forward(self, x, u):
+        xu = torch.cat([x, u], 1)
+
+        x1 = F.relu(self.l1(xu))
+        x1 = F.relu(self.l2(x1))
+        x1 = self.l3(x1)
+
+        x2 = F.relu(self.l4(xu))
+        x2 = F.relu(self.l5(x2))
+        x2 = self.l6(x2)
+        return x1, x2
+
+    def Q1(self, x, u):
+        xu = torch.cat([x, u], 1)
+
+        x1 = F.relu(self.l1(xu))
+        x1 = F.relu(self.l2(x1))
+        x1 = self.l3(x1)
+        return x1 
+    
+    
 # standard ddpg policy network
 class PolicyNetwork(nn.Module):
     def __init__(self, env, obs_dim, action_dim, hidden_dim, init_w=3e-3):
@@ -50,7 +87,7 @@ class PolicyNetwork(nn.Module):
 
     def forward(self, state, topolgy):
         logger.trace('input dimansion of nn are: {},{}',state.shape,topolgy.shape)
-        topolgy = F.normalize(topolgy, dim=1) * 0.05
+        topolgy = F.normalize(topolgy, dim=1) * 0.1
 
         input = torch.cat((state,topolgy), dim=1)
 
@@ -138,7 +175,7 @@ class SafePolicyNetwork(nn.Module):
     
 # define a sub-NN to hanlde topology information
 class TopologyNet(nn.Module):
-    def __init__(self, topology_dim, output_dim, hidden_dim, init_w=0.1):
+    def __init__(self, topology_dim, output_dim, hidden_dim, init_w=0.05):
         super(TopologyNet, self).__init__()
 
         self.linear1 = nn.Linear(topology_dim, hidden_dim)
@@ -155,14 +192,14 @@ class TopologyNet(nn.Module):
         # x = nn.BatchNorm2d(topology)
         x = torch.relu(self.linear1(topology))
         x = torch.relu(self.linear2(x))
-        x = F.sigmoid(self.linear3(x))
+        x = F.relu(self.linear3(x))
 
         return x
 
 
 # define flexible safety policy network (our policy)
 class FlexiblePolicyNet(nn.Module):
-    def __init__(self, env, topology_net, obs_dim, action_dim, hidden_dim, scale=0.25, init_w=3e-3):
+    def __init__(self, env, topology_net, obs_dim, action_dim, hidden_dim, scale=1.0, init_w=3e-3):
         super(FlexiblePolicyNet, self).__init__()
 
         self.env = env
@@ -182,16 +219,13 @@ class FlexiblePolicyNet(nn.Module):
         self.b_triangle = torch.triu(self.b_triangle, diagonal=1)
 
         #define parameters of NN
-        self.b = torch.rand(self.hidden_dim)
-        self.b = (self.b/torch.sum(self.b))*self.scale
-        self.b = torch.nn.Parameter(self.b, requires_grad=True)
-        
-        self.c = torch.rand(self.hidden_dim)
-        self.c = (self.c/torch.sum(self.c))*self.scale
-        self.c = torch.nn.Parameter(self.c, requires_grad=True)
-        
+        self.b = torch.nn.Parameter(torch.rand(self.hidden_dim), requires_grad=True)
+        self.c = torch.nn.Parameter(torch.rand(self.hidden_dim), requires_grad=True)
         self.q = torch.nn.Parameter(torch.rand(action_dim, self.hidden_dim), requires_grad=True)
         self.z = torch.nn.Parameter(torch.rand(action_dim, self.hidden_dim), requires_grad=True)
+
+        self.b.data = (self.b.data / torch.sum(self.b.data)) * self.scale
+        self.c.data = (self.c.data / torch.sum(self.c.data)) * self.scale
 
     def forward(self, state, topology):
         #logger.trace('input dimansion of nn are: {},{}',state.shape,topology.shape)
@@ -204,11 +238,13 @@ class FlexiblePolicyNet(nn.Module):
 
         self.w_plus = torch.square(self.q) @ self.w_triangle
         self.w_minus = -torch.square(self.q) @ self.w_triangle
+        # self.w_plus = self.q.clamp(min=0) @ self.w_triangle
+        # self.w_minus = -self.z.clamp(min=0) @ self.w_triangle
 
-        # self.b.data = self.b.data.clamp(min=0)
-        # self.c.data = self.c.data.clamp(min=0)
-        self.b.data = self.b.data.clamp(min=0) / torch.norm(self.b.data, 1) * self.scale
-        self.c.data = self.c.data.clamp(min=0) / torch.norm(self.c.data, 1) * self.scale
+        self.b.data = self.b.data.clamp(min=0)
+        self.c.data = self.c.data.clamp(min=0)
+        # self.b.data = self.b.data.clamp(min=0) / torch.norm(self.b.data, 1) * self.scale
+        # self.c.data = self.c.data.clamp(min=0) / torch.norm(self.c.data, 1) * self.scale
 
         self.b_plus=torch.matmul(-self.b, self.b_triangle) - torch.tensor(self.env.vmax - 0.02)
         self.b_minus=torch.matmul(-self.b, self.b_triangle) + torch.tensor(self.env.vmin + 0.02)
@@ -296,10 +332,10 @@ if __name__ == "__main__":
     #plot_safe_net(safe_net)
     plot_net(net, topology)
 
-    logger.success(y)
+    # logger.success(y)
 
-    # for i in range(5):
-    #     torch.manual_seed(i)
-    #     topology_net = TopologyNet(topology_dim=55, output_dim=1, hidden_dim=50)
-    #     net = FlexiblePolicyNet(env=env,topology_net=topology_net, action_dim=env.action_dim, obs_dim=env.obs_dim, hidden_dim=100)
-    #     plot_net(net, topology)
+    for i in range(5):
+        torch.manual_seed(i)
+        topology_net = TopologyNet(topology_dim=55, output_dim=1, hidden_dim=50)
+        net = FlexiblePolicyNet(env=env,topology_net=topology_net, action_dim=env.action_dim, obs_dim=env.obs_dim, hidden_dim=100)
+        plot_net(net, topology)
