@@ -168,7 +168,7 @@ for episode in range(num_episodes+1):
         logger.info(f'save policy image to images/policy_img/{today}/seed{seed}_episode_{episode}.png')
 
     for step in range(num_steps):
-        if keyboard.is_pressed('q') or keyboard.is_pressed('esc'):
+        if keyboard.is_pressed('esc'):
             break
 
         action = []
@@ -205,15 +205,15 @@ for episode in range(num_episodes+1):
 
                 # store transition (s_t, a_t, r_t, s_{t+1}) in R
                 replay_buffer_list[i].push(state_buffer, topology, action_buffer, last_action_buffer,
-                                            reward, next_state_buffer, done)
+                                            0.1*reward+0.5*reward_sep[i], next_state_buffer, done)
                 
                 # update both critic and actor network
-                if len(replay_buffer_list[i]) > batch_size:
+                if len(replay_buffer_list[i]) > 2*batch_size:
                     if algorithm == 'DDPG':
                         agent_list[i].train_step_uncertain(replay_buffer=replay_buffer_list[i], batch_size=batch_size)
                     if algorithm == 'TD3':
                         agent_list[i].train(replay_buffer=replay_buffer_list[i], iterations= i, batch_size=batch_size, 
-                                            policy_noise=0.1, noise_clip=0.3, policy_freq=3)
+                                            policy_noise=0.05, noise_clip=0.1, policy_freq=3)
                     
                 if senario == 0:    # low voltage
                     low_buffer_list[i].push(state_buffer, topology, action_buffer, last_action_buffer,
@@ -240,7 +240,7 @@ for episode in range(num_episodes+1):
 
         last_action = np.copy(action)
 
-    if keyboard.is_pressed('q') or keyboard.is_pressed('esc'):
+    if keyboard.is_pressed('esc'):
         logger.warning("Training process terminated by user!")
         break
     if not done:

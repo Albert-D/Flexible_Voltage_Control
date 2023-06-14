@@ -175,7 +175,7 @@ class SafePolicyNetwork(nn.Module):
     
 # define a sub-NN to hanlde topology information
 class TopologyNet(nn.Module):
-    def __init__(self, topology_dim, output_dim, hidden_dim, init_w=0.05):
+    def __init__(self, topology_dim, output_dim, hidden_dim, init_w=0.1):
         super(TopologyNet, self).__init__()
 
         self.linear1 = nn.Linear(topology_dim, hidden_dim)

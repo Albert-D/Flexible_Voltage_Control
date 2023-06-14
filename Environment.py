@@ -16,6 +16,10 @@ from pandapower.plotting.plotly import pf_res_plotly
 
 from loguru import logger
 
+# some hyperparameter in traning
+cost_w_a = -8       # weight of action cost
+cost_w_v = -100     # weight of voltage error cost
+
 class VoltageCtrl_Env(gym.Env):
     def __init__(self, pp_net, injection_bus, v0=1, vmax=1.05, vmin=0.95 ,v_std = 1.0):
         self.network =  pp_net
@@ -95,7 +99,7 @@ class VoltageCtrl_Env(gym.Env):
         done = False 
         
         # adjust parameters of the line
-        self.network.line.x_ohm_per_km = self.topology_init * np.random.uniform(0.8,1.2)
+        # self.network.line.x_ohm_per_km = self.topology_init * np.random.uniform(0.8,1.2)
            
         #adjust reactive power inj at the PV bus
         for i in range(self.agentnum):
@@ -103,14 +107,14 @@ class VoltageCtrl_Env(gym.Env):
 
         pp.runpp(self.network, algorithm='bfsw', init = 'dc')
 
-        reward = float(-25*LA.norm(action) -100*LA.norm(np.clip(self.state-(self.vmax-0.04), 0, np.inf))
-            - 100*LA.norm(np.clip((self.vmin+0.04)-self.state, 0, np.inf)))
+        reward = float(cost_w_a * LA.norm(action) + cost_w_v * LA.norm(np.clip(self.state-(self.vmax-0.02), 0, np.inf))
+            + cost_w_v * LA.norm(np.clip((self.vmin+0.02)-self.state, 0, np.inf)))      #8/100,
         
         agent_num = len(self.injection_bus)
         reward_sep = np.zeros(agent_num, )
         for i in range(agent_num):
-            reward_sep[i] = float(-25*LA.norm(action[i]) -50*LA.norm(np.clip(self.state[i]-(self.vmax-0.04), 0, np.inf))
-                           - 50*LA.norm(np.clip((self.vmin+0.04)-self.state[i], 0, np.inf)))    
+            reward_sep[i] = float(cost_w_a*LA.norm(action[i]) + cost_w_v * LA.norm(np.clip(self.state[i]-(self.vmax-0.02), 0, np.inf))
+                           + cost_w_v * LA.norm(np.clip((self.vmin+0.02)-self.state[i], 0, np.inf)))    
         
         self.state = self.network.res_bus.iloc[self.injection_bus].vm_pu.to_numpy()
         state_all = self.network.res_bus.vm_pu.to_numpy()
@@ -125,7 +129,7 @@ class VoltageCtrl_Env(gym.Env):
         np.random.seed(seed)
         senario = np.random.choice([0, 1])
         #senario = 0
-        self.network.line.x_ohm_per_km = self.topology_init * np.random.uniform(0.8,1.2)
+        self.network.line.x_ohm_per_km = self.topology_init * np.random.uniform(0.7,1.3)
         topology = self.network.line.x_ohm_per_km
         if(senario == 0):#low voltage
             logger.info('this episode is start at low voltage!')
