@@ -3,6 +3,7 @@ from DDPG import *
 from TD3 import *
 from NN_Module import *
 from Utils import ReplayBuffer
+from config import Config
 import sys
 from loguru import logger
 import os
@@ -52,14 +53,14 @@ seed += 1
 with open('seed.txt', 'w') as file:
     file.write(str(seed))
 
-num_agent = 5
-obs_dim = env.obs_dim
-action_dim = env.action_dim
-hidden_dim = 512
-num_episodes = 500
-num_steps = 32  # trajetory length each episode
-batch_size = 128
-plot = False    # if/not plot trained policy every # episodes
+num_agent = Config.agent_num
+obs_dim = Config.obs_dim
+action_dim = Config.action_dim
+hidden_dim = Config.hidden_dim
+num_episodes = Config.total_episodes
+num_steps = Config.total_steps          # trajetory length each episode
+batch_size = Config.batch_size
+plot = False                            # if/not plot trained policy every # episodes
 
 """
 Create Agent list and replay buffer
@@ -116,8 +117,10 @@ for i in range(num_agent):
 
     # Initialize the actor netowrk
     topology_net = TopologyNet(topology_dim=55, output_dim=1, hidden_dim=100)
-    policy_net = FlexiblePolicyNet(env=env, topology_net=topology_net, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
-    target_policy_net = FlexiblePolicyNet(env=env, topology_net=topology_net, obs_dim=obs_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
+    policy_net = FlexiblePolicyNet(env=env, topology_net=topology_net, obs_dim=obs_dim, 
+                                   action_dim=action_dim, hidden_dim=hidden_dim).to(device)
+    target_policy_net = FlexiblePolicyNet(env=env, topology_net=topology_net, obs_dim=obs_dim, 
+                                          action_dim=action_dim, hidden_dim=hidden_dim).to(device)
 
     for target_param, param in zip(target_value_net.parameters(), value_net.parameters()):
         target_param.data.copy_(param.data)
@@ -129,8 +132,9 @@ for i in range(num_agent):
         agent = DDPG(policy_net=policy_net, value_net=value_net,
                     target_policy_net=target_policy_net, target_value_net=target_value_net)
     if algorithm == 'TD3':
-        agent = TD3(policy_net=policy_net, value_net=value_net, target_policy_net=target_policy_net,
-                    target_value_net=target_value_net, max_action=0.5)
+        agent = TD3(policy_net = policy_net, value_net = value_net, target_policy_net = target_policy_net,
+                    target_value_net = target_value_net, value_lr = Config.value_learning_rate,
+                    policy_lr=Config.policy_learning_rate, max_action=0.5)
     
     replay_buffer = ReplayBuffer(capacity=1000000)
     high_buffer = ReplayBuffer(capacity=1000000)
@@ -150,14 +154,15 @@ for i in range(num_agent):
 #     agent_list[i].value_net.load_state_dict(value_net_dict)
 #     agent_list[i].policy_net.load_state_dict(policy_net_dict)
 
-rewards = []
+rewards_history = []
 avg_reward_list = []
 
 for episode in range(num_episodes+1):
     #logger.info('------ now training episode {}  ------', episode)
     state, topology, senario = env.reset(seed = episode)
     #topology = env.network.line.x_ohm_per_km
-    episode_reward = 0
+    episode_reward = (np.clip(np.max(state)-env.v0, 0, np.inf) + np.clip(env.v0 - np.min(state), 0, np.inf)) * 3000
+    logger.debug('add reward {} to episode', episode_reward)
     last_action = np.zeros((num_agent,1))
     plot_policy(agent_list,torch.cuda.FloatTensor(topology).unsqueeze(0))
     if episode%50==0:
@@ -205,10 +210,12 @@ for episode in range(num_episodes+1):
 
                 # store transition (s_t, a_t, r_t, s_{t+1}) in R
                 replay_buffer_list[i].push(state_buffer, topology, action_buffer, last_action_buffer,
-                                            0.1*reward+0.5*reward_sep[i], next_state_buffer, done)
+                                            Config.r_global_weight*reward+Config.r_local_weight*reward_sep[i],  # reward include two part
+                                            next_state_buffer, done)
                 
                 # update both critic and actor network
-                if len(replay_buffer_list[i]) > 2*batch_size:
+                if len(replay_buffer_list[i]) > 3*batch_size:
+
                     if algorithm == 'DDPG':
                         agent_list[i].train_step_uncertain(replay_buffer=replay_buffer_list[i], batch_size=batch_size)
                     if algorithm == 'TD3':
@@ -222,14 +229,6 @@ for episode in range(num_episodes+1):
                     high_buffer_list[i].push(state_buffer, topology, action_buffer, last_action_buffer,
                                             reward, next_state_buffer, done)
                     
-                # if len(high_buffer_list[i]) > batch_size:
-                #     agent_list[i].policy_net.z.requires_grad = False
-                #     agent_list[i].policy_net.c.requires_grad = False
-                #     agent_list[i].policy_net.q.requires_grad = True
-                #     agent_list[i].policy_net.b.requires_grad = True
-                #     agent_list[i].train(replay_buffer=high_buffer_list[i], iterations= i, batch_size=batch_size, 
-                #                              policy_noise=0.1, noise_clip=0.3, policy_freq=3)
-
             if(done):
                 logger.success('episode {} done at step {}', episode, step)
                 episode_reward += reward  
@@ -242,26 +241,35 @@ for episode in range(num_episodes+1):
 
     if keyboard.is_pressed('esc'):
         logger.warning("Training process terminated by user!")
+
+        today = date.today()
+        value_pth = f'check_points/value_net/{today}/'
+        policy_pth = f'check_points/policy_net/{today}/'
+        for i in range(num_agent):
+            torch.save(agent_list[i].value_net.state_dict(), value_pth + f'Step_{episode}_Seed_{seed}_a{i}.pth')
+            torch.save(agent_list[i].policy_net.state_dict(), policy_pth + f'Step_{episode}_Seed_{seed}_a{i}.pth')
+            logger.info('value net parameters had saved to {}', value_pth + f'Step_{episode}_Seed_{seed}_a{i}.pth')
+            logger.info('policy_net parameters had saved to {}', policy_pth + f'Step_{episode}_Seed_{seed}_a{i}.pth')
         break
     if not done:
         logger.info('episode {} finish with entire step!', episode)
-    rewards.append(episode_reward)
-    avg_reward = np.mean(rewards[-40:])
+    logger.info('reward of this trojectory was {}', episode_reward)
+    rewards_history.append(episode_reward)
+    avg_reward = np.mean(rewards_history[-50:])
     logger.trace(action)
     if(episode%10==0):
         print("Episode * {} * Avg Reward is ==> {}".format(episode, avg_reward))
     
     ### save nn model parameters
-    if(episode%100 == 0):
+    if(episode%50 == 0):
+        today = date.today()
+        value_pth = f'check_points/value_net/{today}/'
+        policy_pth = f'check_points/policy_net/{today}/'
+        if not os.path.exists(value_pth): 
+            os.makedirs(value_pth)
+        if not os.path.exists(policy_pth):
+            os.makedirs(policy_pth)
         for i in range(num_agent):
-            today = date.today()
-            value_pth = f'check_points/value_net/{today}/'
-            policy_pth = f'check_points/policy_net/{today}/'
-            if not os.path.exists(value_pth): 
-                os.makedirs(value_pth)
-            if not os.path.exists(policy_pth):
-                os.makedirs(policy_pth)
-
             torch.save(agent_list[i].value_net.state_dict(), value_pth + f'Step_{episode}_Seed_{seed}_a{i}.pth')
             torch.save(agent_list[i].policy_net.state_dict(), policy_pth + f'Step_{episode}_Seed_{seed}_a{i}.pth')
             logger.info('value net parameters had saved to {}', value_pth + f'Step_{episode}_Seed_{seed}_a{i}.pth')
@@ -269,14 +277,14 @@ for episode in range(num_episodes+1):
         
     avg_reward_list.append(avg_reward)
 
-
-# plot the reward 
-fig, axs = plt.subplots(1, 1)
-plt.plot(range(len(avg_reward_list)), avg_reward_list)
-plt.xlabel('Episode')
-plt.ylabel('Reward')
-plt.grid(True)
 if not os.path.exists(f'images/reward_img/{today}/'):
     os.makedirs(f'images/reward_img/{today}/')
-plt.savefig(f'images/reward_img/{today}/reward_{seed}.png')
-plt.show()
+
+# plot the reward 
+# fig2, axs2 = plt.subplots(1, 1)
+# plt.plot(range(len(avg_reward_list)), avg_reward_list)
+# plt.xlabel('Episode')
+# plt.ylabel('Reward')
+# plt.grid(True)
+# plt.savefig(f'images/reward_img/{today}/avg_reward_{seed}.png')
+# plt.show()

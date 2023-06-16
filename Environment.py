@@ -16,12 +16,14 @@ from pandapower.plotting.plotly import pf_res_plotly
 
 from loguru import logger
 
+from config import Config
+
 # some hyperparameter in traning
-cost_w_a = -8       # weight of action cost
-cost_w_v = -100     # weight of voltage error cost
+cost_w_a = Config.cost_w_a       # weight of action cost
+cost_w_v = Config.cost_w_v     # weight of voltage error cost
 
 class VoltageCtrl_Env(gym.Env):
-    def __init__(self, pp_net, injection_bus, v0=1, vmax=1.05, vmin=0.95 ,v_std = 1.0):
+    def __init__(self, pp_net, injection_bus, v0=1, vmax=1.05, vmin=0.95):
         self.network =  pp_net
         self.obs_dim = 56
         self.action_dim = 1
@@ -30,7 +32,6 @@ class VoltageCtrl_Env(gym.Env):
         self.v0 = v0 
         self.vmax = vmax
         self.vmin = vmin
-        self.v_std = v_std
         
         self.load0_p = np.copy(self.network.load['p_mw'])
         self.load0_q = np.copy(self.network.load['q_mvar'])
@@ -47,8 +48,8 @@ class VoltageCtrl_Env(gym.Env):
         
         done = False 
         
-        # $-50*|u|^2 -100 * |max(v-v_max,0)|^2 -100 * |max(v_min-v,0)|^2$
-        reward = float(-50*LA.norm(action)**2 -100*LA.norm(np.clip(self.state-self.vmax, 0, np.inf))**2
+        # $-5*|u|^2 -100 * |max(v-v_max,0)|^2 -100 * |max(v_min-v,0)|^2$
+        reward = float(-5*LA.norm(action)**2 -100*LA.norm(np.clip(self.state-self.vmax, 0, np.inf))**2
                        - 100*LA.norm(np.clip(self.vmin-self.state, 0, np.inf))**2)
         
         # state-transition dynamics
@@ -107,14 +108,14 @@ class VoltageCtrl_Env(gym.Env):
 
         pp.runpp(self.network, algorithm='bfsw', init = 'dc')
 
-        reward = float(cost_w_a * LA.norm(action) + cost_w_v * LA.norm(np.clip(self.state-(self.vmax-0.02), 0, np.inf))
-            + cost_w_v * LA.norm(np.clip((self.vmin+0.02)-self.state, 0, np.inf)))      #8/100,
+        reward = float(cost_w_a * LA.norm(action) + cost_w_v * LA.norm(np.clip(self.state-(self.vmax-0.03), 0, np.inf))
+            + cost_w_v * LA.norm(np.clip((self.vmin+0.03)-self.state, 0, np.inf)))      #8/100,
         
         agent_num = len(self.injection_bus)
         reward_sep = np.zeros(agent_num, )
         for i in range(agent_num):
-            reward_sep[i] = float(cost_w_a*LA.norm(action[i]) + cost_w_v * LA.norm(np.clip(self.state[i]-(self.vmax-0.02), 0, np.inf))
-                           + cost_w_v * LA.norm(np.clip((self.vmin+0.02)-self.state[i], 0, np.inf)))    
+            reward_sep[i] = float(cost_w_a*LA.norm(action[i]) + cost_w_v * LA.norm(np.clip(self.state[i]-(self.vmax-0.03), 0, np.inf))
+                           + cost_w_v * LA.norm(np.clip((self.vmin+0.03)-self.state[i], 0, np.inf)))    
         
         self.state = self.network.res_bus.iloc[self.injection_bus].vm_pu.to_numpy()
         state_all = self.network.res_bus.vm_pu.to_numpy()
@@ -129,23 +130,23 @@ class VoltageCtrl_Env(gym.Env):
         np.random.seed(seed)
         senario = np.random.choice([0, 1])
         #senario = 0
-        self.network.line.x_ohm_per_km = self.topology_init * np.random.uniform(0.7,1.3)
+        self.network.line.x_ohm_per_km = self.topology_init * np.random.uniform(0.8,1.2)
         topology = self.network.line.x_ohm_per_km
         if(senario == 0):#low voltage
-            logger.info('this episode is start at low voltage!')
+            # logger.info('this episode is start at low voltage!')
             self.network.sgen['p_mw'] = 0.0
             self.network.sgen['q_mvar'] = 0.0
             self.network.load['p_mw'] = 0.0
             self.network.load['q_mvar'] = 0.0
             
             self.network.sgen.at[1, 'p_mw'] = -0.5*np.random.uniform(2, 5)
-            self.network.sgen.at[2, 'p_mw'] = -0.6*np.random.uniform(10, 30)
+            self.network.sgen.at[2, 'p_mw'] = -0.4*np.random.uniform(10, 30)
             self.network.sgen.at[3, 'p_mw'] = -0.3*np.random.uniform(2, 8)
             self.network.sgen.at[4, 'p_mw'] = -0.3*np.random.uniform(2, 8)
             self.network.sgen.at[5, 'p_mw'] = -0.4*np.random.uniform(2, 8)
 
         elif(senario == 1): #high voltage 
-            logger.info('this episode is start at high voltage!')
+            # logger.info('this episode is start at high voltage!')
             self.network.sgen['p_mw'] = 0.0
             self.network.sgen['q_mvar'] = 0.0
             self.network.load['p_mw'] = 0.0
@@ -174,6 +175,11 @@ class VoltageCtrl_Env(gym.Env):
         
         pp.runpp(self.network, algorithm='bfsw')
         self.state = self.network.res_bus.iloc[self.injection_bus].vm_pu.to_numpy()
+        if np.max(self.state) > self.v0:
+            logger.info('Episode start at high volatage, highest is {} pu...', np.max(self.state))
+        if np.min(self.state) < self.v0:
+            logger.info('Episode start at low volatage, lowest is {} pu...', np.min(self.state))
+
         return self.state, topology, senario
     
     def reset0(self, seed=1): #reset voltage to nominal value

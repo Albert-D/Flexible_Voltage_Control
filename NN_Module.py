@@ -1,6 +1,7 @@
 import torch
 import sys
 from loguru import logger
+from config import Config
 
 import torch.nn as nn
 import torch.nn.functional as F
@@ -175,7 +176,7 @@ class SafePolicyNetwork(nn.Module):
     
 # define a sub-NN to hanlde topology information
 class TopologyNet(nn.Module):
-    def __init__(self, topology_dim, output_dim, hidden_dim, init_w=0.1):
+    def __init__(self, topology_dim, output_dim, hidden_dim, init_w=Config.topology_net_init_w):
         super(TopologyNet, self).__init__()
 
         self.linear1 = nn.Linear(topology_dim, hidden_dim)
@@ -229,7 +230,7 @@ class FlexiblePolicyNet(nn.Module):
 
     def forward(self, state, topology):
         #logger.trace('input dimansion of nn are: {},{}',state.shape,topology.shape)
-        topology = F.normalize(topology, dim=1)
+        #topology = F.normalize(topology, dim=1)
         y1 = self.topology_net(topology)
 
         # input = torch.cat((state,topology), dim=1)
@@ -246,8 +247,8 @@ class FlexiblePolicyNet(nn.Module):
         # self.b.data = self.b.data.clamp(min=0) / torch.norm(self.b.data, 1) * self.scale
         # self.c.data = self.c.data.clamp(min=0) / torch.norm(self.c.data, 1) * self.scale
 
-        self.b_plus=torch.matmul(-self.b, self.b_triangle) - torch.tensor(self.env.vmax - 0.02)
-        self.b_minus=torch.matmul(-self.b, self.b_triangle) + torch.tensor(self.env.vmin + 0.02)
+        self.b_plus=torch.matmul(-self.b, self.b_triangle) - torch.tensor(self.env.vmax - 0.01)
+        self.b_minus=torch.matmul(-self.b, self.b_triangle) + torch.tensor(self.env.vmin + 0.01)
 
         self.nonlinear_plus = F.relu(input @ (torch.ones(input_dim, self.hidden_dim)) + 
                                 self.b_plus.view(1, self.hidden_dim)) @ self.w_plus.t()
@@ -255,6 +256,7 @@ class FlexiblePolicyNet(nn.Module):
                                 self.b_minus.view(1, self.hidden_dim)) @ self.w_minus.t()
         
         y2 = self.nonlinear_plus + self.nonlinear_minus
+        #logger.trace('y1 = {}, y2 = {}',y1,y2)
 
         y = y1 * y2
 
@@ -322,20 +324,40 @@ if __name__ == "__main__":
     state = state.expand(64,1)
     logger.info(state.shape)
 
-    topology_net = TopologyNet(topology_dim=55, output_dim=1, hidden_dim=100)
-    net=FlexiblePolicyNet(env=env,topology_net=topology_net,action_dim=env.action_dim,obs_dim=env.obs_dim,hidden_dim=512)
-    safe_net=SafePolicyNetwork(env=env,action_dim=env.action_dim,obs_dim=env.obs_dim,hidden_dim=100)
-
-    y = net( torch.cuda.FloatTensor([[1]]), topology)
-    
-    # logger.info(y)
-    #plot_safe_net(safe_net)
-    plot_net(net, topology)
-
-    # logger.success(y)
-
+    agent_policy_net = []
     for i in range(5):
-        torch.manual_seed(i)
-        topology_net = TopologyNet(topology_dim=55, output_dim=1, hidden_dim=50)
-        net = FlexiblePolicyNet(env=env,topology_net=topology_net, action_dim=env.action_dim, obs_dim=env.obs_dim, hidden_dim=100)
-        plot_net(net, topology)
+        topology_net = TopologyNet(topology_dim=55, output_dim=1, hidden_dim=100)
+        policy_net = FlexiblePolicyNet(env=env, topology_net=topology_net, obs_dim=1, action_dim=1, hidden_dim=512).to(device)
+        agent_policy_net.append(policy_net)
+    for i in range(5):
+        value_net_dict = torch.load(f'check_points/value_net/2023-06-14/Step_500_Seed_8_a{i}.pth')
+        policy_net_dict = torch.load(f'check_points/policy_net/2023-06-14/Step_500_Seed_8_a{i}.pth')
+
+        agent_policy_net[i].load_state_dict(policy_net_dict)
+
+    test_topology_net = agent_policy_net[2]
+    for i in range(10):
+        topology = torch.cuda.FloatTensor(env.topology_init * np.random.uniform(0.7,1.3)).unsqueeze(0)
+        test_topology_net(torch.cuda.FloatTensor([[1.1]]), topology)
+        logger.debug(topology)
+        topology = F.normalize(topology, dim=1)
+        output = test_topology_net.topology_net(topology)
+        logger.debug(topology)
+
+    # topology_net = TopologyNet(topology_dim=55, output_dim=1, hidden_dim=100)
+    # net=FlexiblePolicyNet(env=env,topology_net=topology_net,action_dim=env.action_dim,obs_dim=env.obs_dim,hidden_dim=512)
+    # safe_net=SafePolicyNetwork(env=env,action_dim=env.action_dim,obs_dim=env.obs_dim,hidden_dim=100)
+
+    # y = net( torch.cuda.FloatTensor([[1]]), topology)
+    
+    # # logger.info(y)
+    # #plot_safe_net(safe_net)
+    # # plot_net(net, topology)
+
+    # # logger.success(y)
+
+    # for i in range(5):
+    #     torch.manual_seed(i)
+    #     topology_net = TopologyNet(topology_dim=55, output_dim=1, hidden_dim=50)
+    #     net = FlexiblePolicyNet(env=env,topology_net=topology_net, action_dim=env.action_dim, obs_dim=env.obs_dim, hidden_dim=100)
+    #     plot_net(net, topology)

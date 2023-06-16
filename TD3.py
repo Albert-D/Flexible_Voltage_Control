@@ -1,10 +1,12 @@
 ## Twin Delay Training
+from config import Config
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from torch.optim import lr_scheduler
 
 import sys
 from loguru import logger
@@ -19,12 +21,14 @@ class TD3(object):
         self.policy_net = policy_net
         self.target_policy_net = target_policy_net
         # self.target_policy_net.load_state_dict(self.policy_net.state_dict())
-        self.policy_net_optimizer = optim.Adam(self.policy_net.parameters(), lr=value_lr)
+        self.policy_net_optimizer = optim.Adam(self.policy_net.parameters(), lr=policy_lr)
+        self.policy_net_scheduler = lr_scheduler.MultiStepLR(self.policy_net_optimizer, milestones=Config.value_milestones, gamma=0.5)
 
         self.value_net = value_net
         self.target_value_net = target_value_net
         # self.target_value_net.load_state_dict(self.value_net.state_dict())
-        self.value_net_optimizer = optim.Adam(self.value_net.parameters(), lr=policy_lr)
+        self.value_net_optimizer = optim.Adam(self.value_net.parameters(), lr=value_lr)
+        self.value_net_scheduler = lr_scheduler.MultiStepLR(self.value_net_optimizer, milestones=Config.value_milestones, gamma=0.5)
 
         self.max_action = max_action
         self.total_it = 0
@@ -64,22 +68,34 @@ class TD3(object):
         current_Q1, current_Q2 = self.value_net(state, action)
 
         # Compute value_net loss
-        value_loss = F.mse_loss(current_Q1, target_Q) + F.mse_loss(current_Q2, target_Q) 
+        value_loss = F.mse_loss(current_Q1, target_Q) + F.mse_loss(current_Q2, target_Q)
+        value_loss = 0.01 * value_loss
+        # if iterations == 2:
+        #     logger.debug('----value lr----')
+        #     logger.debug(self.value_net_scheduler.get_last_lr())
+        #     logger.debug(self.value_net_scheduler.last_epoch)
 
         # Optimize the value_net
         self.value_net_optimizer.zero_grad()
         value_loss.backward()
         self.value_net_optimizer.step()
+        self.value_net_scheduler.step()
 
         # Delayed policy updates
         if self.total_it % policy_freq == 0:
 
             # Compute policy_net loss
             policy_loss = -self.value_net.Q1(state, self.policy_net(state, topology)).mean()
+            policy_loss = 0.01 * policy_loss
+            # if iterations == 2:
+            #     logger.debug('----policy lr----')
+            #     logger.debug(self.policy_net_scheduler.get_last_lr())
+            #     logger.debug(self.policy_net_scheduler.last_epoch)
             # Optimize the policy_net 
             self.policy_net_optimizer.zero_grad()
             policy_loss.backward()
             self.policy_net_optimizer.step()
+            self.policy_net_scheduler.step()
 
             # Update the frozen target models
             for param, target_param in zip(self.value_net.parameters(), self.target_value_net.parameters()):
