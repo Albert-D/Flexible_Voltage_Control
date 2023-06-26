@@ -49,8 +49,8 @@ class VoltageCtrl_Env(gym.Env):
         done = False 
         
         # $-5*|u|^2 -100 * |max(v-v_max,0)|^2 -100 * |max(v_min-v,0)|^2$
-        reward = float(-5*LA.norm(action)**2 -100*LA.norm(np.clip(self.state-self.vmax, 0, np.inf))**2
-                       - 100*LA.norm(np.clip(self.vmin-self.state, 0, np.inf))**2)
+        reward = float(-5*LA.norm(action) -100*LA.norm(np.clip(self.state-self.vmax, 0, np.inf))
+                       - 100*LA.norm(np.clip(self.vmin-self.state, 0, np.inf)))
         
         # state-transition dynamics
         for i in range(self.agentnum):
@@ -129,7 +129,7 @@ class VoltageCtrl_Env(gym.Env):
     def reset(self, seed=1): #sample different initial volateg conditions during training
         np.random.seed(seed)
         senario = np.random.choice([0, 1])
-        #senario = 0
+
         self.network.line.x_ohm_per_km = self.topology_init * np.random.uniform(0.8,1.2)
         topology = self.network.line.x_ohm_per_km
         if(senario == 0):#low voltage

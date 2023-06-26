@@ -107,45 +107,41 @@ class PolicyNetwork(nn.Module):
 
 # monotone policy network with dead-band between [v_min, v_max]
 class SafePolicyNetwork(nn.Module):
-    def __init__(self, env, obs_dim, action_dim, hidden_dim, scale = 0.156, init_w=3e-3):
+    def __init__(self, env, obs_dim, action_dim, hidden_dim, scale = 0.15, init_w=3e-3):
         super(SafePolicyNetwork, self).__init__()
-        use_cuda = torch.cuda.is_available()
-        self.device = torch.device("cuda" if use_cuda else "cpu")
+        logger.info('Safe DDPG policy Net initialization')
 
         self.env = env
-        self.obs_dim = obs_dim
         self.hidden_dim = hidden_dim
         self.scale = scale
         
         #define weight and bias recover matrix
-        self.w_recover = torch.ones((self.hidden_dim, self.hidden_dim))
+        self.w_recover = torch.ones((self.hidden_dim, self.hidden_dim)).to(device)
         self.w_recover = -torch.triu(self.w_recover, diagonal=0)\
-        +torch.triu(self.w_recover, diagonal=2)+2*torch.eye(self.hidden_dim)
-        self.w_recover=self.w_recover.to(self.device)
+        +torch.triu(self.w_recover, diagonal=2)+2*torch.eye(self.hidden_dim).to(device)
         
-        self.b_recover = torch.ones((self.hidden_dim, self.hidden_dim))
-        self.b_recover = torch.triu(self.b_recover, diagonal=0)-torch.eye(self.hidden_dim)
-        self.b_recover = self.b_recover.to(self.device)
+        self.b_recover = torch.ones((self.hidden_dim, self.hidden_dim)).to(device)
+        self.b_recover = torch.triu(self.b_recover, diagonal=0)-torch.eye(self.hidden_dim).to(device)
         
-        self.select_w = torch.ones(1, self.hidden_dim).to(self.device)
-        self.select_wneg = -torch.ones(1, self.hidden_dim).to(self.device)
+        self.select_w = torch.ones(1, self.hidden_dim).to(device)
+        self.select_wneg = -torch.ones(1, self.hidden_dim).to(device)
         
         # initialization
-        self.b = torch.rand(self.hidden_dim).to(self.device)
+        self.b = torch.rand(self.hidden_dim).to(device)
         self.b = (self.b/torch.sum(self.b))*scale
         self.b = torch.nn.Parameter(self.b, requires_grad=True)
         
-        self.c = torch.rand(self.hidden_dim).to(self.device)
+        self.c = torch.rand(self.hidden_dim).to(device)
         self.c = (self.c/torch.sum(self.c))*scale
         self.c = torch.nn.Parameter(self.c, requires_grad=True)
         
-        self.q = torch.nn.Parameter(torch.rand(action_dim, self.hidden_dim).to(self.device), requires_grad=True)
-        self.z = torch.nn.Parameter(torch.rand(action_dim, self.hidden_dim).to(self.device), requires_grad=True)
+        self.q = torch.nn.Parameter(torch.rand(action_dim, self.hidden_dim).to(device), requires_grad=True)
+        self.z = torch.nn.Parameter(torch.rand(action_dim, self.hidden_dim).to(device), requires_grad=True)
         
     def forward(self, state):
         self.w_plus=torch.matmul(torch.square(self.q), self.w_recover)
         
-        self.w_minus=torch.matmul(-torch.square(self.z), self.w_recover)
+        self.w_minus=torch.matmul(-torch.square(self.q), self.w_recover)
         
         b = self.b.data
         b = b.clamp(min=0)
@@ -157,11 +153,9 @@ class SafePolicyNetwork(nn.Module):
         c = self.scale*c/torch.norm(c, 1)
         self.c.data = c
         
-        self.b_plus=torch.matmul(-self.b, self.b_recover) 
-        self.b_minus=torch.matmul(-self.c, self.b_recover) 
-        # self.b_plus=torch.matmul(-self.b, self.b_recover) - torch.tensor(self.env.vmax-0.02)
-        # self.b_minus=torch.matmul(-self.c, self.b_recover) + torch.tensor(self.env.vmin+0.02)
-
+        self.b_plus=torch.matmul(-self.b, self.b_recover) - torch.tensor(self.env.vmax)
+        self.b_minus=torch.matmul(-self.b, self.b_recover) + torch.tensor(self.env.vmin)
+        
         self.nonlinear_plus = torch.matmul(F.relu(torch.matmul(state, self.select_w)
                                                   + self.b_plus.view(1, self.hidden_dim)),
                                            torch.transpose(self.w_plus, 0, 1))
@@ -172,7 +166,12 @@ class SafePolicyNetwork(nn.Module):
         
         x = (self.nonlinear_plus+self.nonlinear_minus) 
         
-        return self.nonlinear_minus
+        return x
+
+    def get_action(self, state):
+        state = torch.cuda.FloatTensor(state).unsqueeze(0).to(device)
+        action = self.forward(state)
+        return action.detach().cpu().numpy()[0]
     
 # define a sub-NN to hanlde topology information
 class TopologyNet(nn.Module):
@@ -324,34 +323,15 @@ if __name__ == "__main__":
     state = state.expand(64,1)
     logger.info(state.shape)
 
-    agent_policy_net = []
-    for i in range(5):
-        topology_net = TopologyNet(topology_dim=55, output_dim=1, hidden_dim=100)
-        policy_net = FlexiblePolicyNet(env=env, topology_net=topology_net, obs_dim=1, action_dim=1, hidden_dim=512).to(device)
-        agent_policy_net.append(policy_net)
-    for i in range(5):
-        value_net_dict = torch.load(f'check_points/value_net/2023-06-14/Step_500_Seed_8_a{i}.pth')
-        policy_net_dict = torch.load(f'check_points/policy_net/2023-06-14/Step_500_Seed_8_a{i}.pth')
-
-        agent_policy_net[i].load_state_dict(policy_net_dict)
-
-    test_topology_net = agent_policy_net[2]
-    for i in range(10):
-        topology = torch.cuda.FloatTensor(env.topology_init * np.random.uniform(0.7,1.3)).unsqueeze(0)
-        test_topology_net(torch.cuda.FloatTensor([[1.1]]), topology)
-        logger.debug(topology)
-        topology = F.normalize(topology, dim=1)
-        output = test_topology_net.topology_net(topology)
-        logger.debug(topology)
 
     # topology_net = TopologyNet(topology_dim=55, output_dim=1, hidden_dim=100)
     # net=FlexiblePolicyNet(env=env,topology_net=topology_net,action_dim=env.action_dim,obs_dim=env.obs_dim,hidden_dim=512)
-    # safe_net=SafePolicyNetwork(env=env,action_dim=env.action_dim,obs_dim=env.obs_dim,hidden_dim=100)
+    safe_net=SafePolicyNetwork(env=env,action_dim=env.action_dim,obs_dim=env.obs_dim,hidden_dim=100)
 
     # y = net( torch.cuda.FloatTensor([[1]]), topology)
     
     # # logger.info(y)
-    # #plot_safe_net(safe_net)
+    plot_safe_net(safe_net)
     # # plot_net(net, topology)
 
     # # logger.success(y)

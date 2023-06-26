@@ -281,10 +281,10 @@ if not os.path.exists(f'images/reward_img/{today}/'):
     os.makedirs(f'images/reward_img/{today}/')
 
 # plot the reward 
-# fig2, axs2 = plt.subplots(1, 1)
-# plt.plot(range(len(avg_reward_list)), avg_reward_list)
-# plt.xlabel('Episode')
-# plt.ylabel('Reward')
-# plt.grid(True)
-# plt.savefig(f'images/reward_img/{today}/avg_reward_{seed}.png')
-# plt.show()
+fig2, axs2 = plt.subplots(1, 1)
+plt.plot(range(len(avg_reward_list)), avg_reward_list)
+plt.xlabel('Episode')
+plt.ylabel('Reward')
+plt.grid(True)
+plt.savefig(f'images/reward_img/{today}/avg_reward_{seed}.png')
+plt.show()

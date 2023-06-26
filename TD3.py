@@ -38,7 +38,7 @@ class TD3(object):
         return self.policy_net(state).cpu().data.numpy().flatten()
 
     def train(self, replay_buffer, iterations, batch_size=100, discount=0.99, \
-              tau=0.005, policy_noise=0.2, noise_clip=0.5, policy_freq=2):
+              tau=0.01, policy_noise=0.2, noise_clip=0.5, policy_freq=2):
         self.total_it += 1
 
         # Sample replay buffer 

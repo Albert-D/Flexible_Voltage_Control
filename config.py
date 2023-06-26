@@ -4,11 +4,11 @@ class Config:
 
     # used in reward funtion
     cost_w_a = -6       # weight of action cost
-    cost_w_v = -75     # weight of voltage error cost
+    cost_w_v = -80     # weight of voltage error cost
 
     # traning golbal reward and local reward
-    r_global_weight = 0.15
-    r_local_weight = 0.50
+    r_global_weight = 0.25
+    r_local_weight = 0.6
 
     # dead-zone offset, default deadzone is 0.05, use this offset to reduce dead-zon6
     dz_offset = 0.02
@@ -16,7 +16,7 @@ class Config:
     policy_learning_rate = 2e-4
     value_learning_rate = 1e-3
     lr_discount = 0.5
-    policy_milestones = [750, 1500, 2500, 4000]       # change learning rate at specific steps
+    policy_milestones = [1000, 2000, 4000]       # change learning rate at specific steps
     value_milestones = [1500, 3000, 5000, 9000]
 
     # traing parameter
