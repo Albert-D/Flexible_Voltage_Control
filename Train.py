@@ -57,6 +57,7 @@ num_agent = Config.agent_num
 obs_dim = Config.obs_dim
 action_dim = Config.action_dim
 hidden_dim = Config.hidden_dim
+topology_hidden_dim = Config.topology_hidden_dim
 num_episodes = Config.total_episodes
 num_steps = Config.total_steps          # trajetory length each episode
 batch_size = Config.batch_size
@@ -109,14 +110,14 @@ low_buffer_list = []
 for i in range(num_agent):
     # Initialize the critic network 
     if algorithm == 'DDPG':
-        value_net = ValueNetwork(obs_dim=1, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
-        target_value_net = ValueNetwork(obs_dim=1, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
+        value_net = ValueNetwork(obs_dim=1, action_dim=action_dim, hidden_dim=256).to(device)
+        target_value_net = ValueNetwork(obs_dim=1, action_dim=action_dim, hidden_dim=256).to(device)
     if algorithm == 'TD3':
         value_net = Q_Network(obs_dim=1, action_dim=action_dim,hidden_dim=256).to(device)
         target_value_net = Q_Network(obs_dim=1, action_dim=action_dim,hidden_dim=256).to(device)
 
     # Initialize the actor netowrk
-    topology_net = TopologyNet(topology_dim=55, output_dim=1, hidden_dim=100)
+    topology_net = TopologyNet(topology_dim=55, output_dim=1, hidden_dim=topology_hidden_dim)
     policy_net = FlexiblePolicyNet(env=env, topology_net=topology_net, obs_dim=obs_dim, 
                                    action_dim=action_dim, hidden_dim=hidden_dim).to(device)
     target_policy_net = FlexiblePolicyNet(env=env, topology_net=topology_net, obs_dim=obs_dim, 
@@ -148,8 +149,8 @@ for i in range(num_agent):
 
 # load nn model parameter from saved model 
 # for i in range(num_agent):
-#     value_net_dict = torch.load(f'check_points/value_net/2023-06-12/Step_300_Seed_7_a{i}.pth')
-#     policy_net_dict = torch.load(f'check_points/policy_net/2023-06-12/Step_300_Seed_7_a{i}.pth')
+#     value_net_dict = torch.load(f'check_points/value_net/2023-07-03/Step_50_Seed_8_a{i}.pth')
+#     policy_net_dict = torch.load(f'check_points/policy_net/2023-07-03/Step_50_Seed_8_a{i}.pth')
 
 #     agent_list[i].value_net.load_state_dict(value_net_dict)
 #     agent_list[i].policy_net.load_state_dict(policy_net_dict)
@@ -161,8 +162,9 @@ for episode in range(num_episodes+1):
     #logger.info('------ now training episode {}  ------', episode)
     state, topology, senario = env.reset(seed = episode)
     #topology = env.network.line.x_ohm_per_km
-    episode_reward = (np.clip(np.max(state)-env.v0, 0, np.inf) + np.clip(env.v0 - np.min(state), 0, np.inf)) * 3000
-    logger.debug('add reward {} to episode', episode_reward)
+    # episode_reward = (np.clip(np.max(state)-env.v0, 0, np.inf) + np.clip(env.v0 - np.min(state), 0, np.inf)) * 3000
+    # logger.debug('add reward {} to episode', episode_reward)
+    episode_reward = 0
     last_action = np.zeros((num_agent,1))
     plot_policy(agent_list,torch.cuda.FloatTensor(topology).unsqueeze(0))
     if episode%50==0:
@@ -220,7 +222,7 @@ for episode in range(num_episodes+1):
                         agent_list[i].train_step_uncertain(replay_buffer=replay_buffer_list[i], batch_size=batch_size)
                     if algorithm == 'TD3':
                         agent_list[i].train(replay_buffer=replay_buffer_list[i], iterations= i, batch_size=batch_size, 
-                                            policy_noise=0.05, noise_clip=0.1, policy_freq=3)
+                                            policy_noise=0.03, noise_clip=0.05, policy_freq=3)
                     
                 if senario == 0:    # low voltage
                     low_buffer_list[i].push(state_buffer, topology, action_buffer, last_action_buffer,

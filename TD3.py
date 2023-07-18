@@ -21,6 +21,8 @@ class TD3(object):
         self.policy_net = policy_net
         self.target_policy_net = target_policy_net
         # self.target_policy_net.load_state_dict(self.policy_net.state_dict())
+
+        ### Adam as default
         self.policy_net_optimizer = optim.Adam(self.policy_net.parameters(), lr=policy_lr)
         self.policy_net_scheduler = lr_scheduler.MultiStepLR(self.policy_net_optimizer, milestones=Config.value_milestones, gamma=0.5)
 
@@ -69,7 +71,7 @@ class TD3(object):
 
         # Compute value_net loss
         value_loss = F.mse_loss(current_Q1, target_Q) + F.mse_loss(current_Q2, target_Q)
-        value_loss = 0.01 * value_loss
+        # value_loss = 0.01 * value_loss
         # if iterations == 2:
         #     logger.debug('----value lr----')
         #     logger.debug(self.value_net_scheduler.get_last_lr())
@@ -86,7 +88,7 @@ class TD3(object):
 
             # Compute policy_net loss
             policy_loss = -self.value_net.Q1(state, self.policy_net(state, topology)).mean()
-            policy_loss = 0.01 * policy_loss
+            # policy_loss = 0.01 * policy_loss
             # if iterations == 2:
             #     logger.debug('----policy lr----')
             #     logger.debug(self.policy_net_scheduler.get_last_lr())

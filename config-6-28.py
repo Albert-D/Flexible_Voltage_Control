@@ -1,11 +1,11 @@
-### this file is used to define some hyperparameter in module and traning
+### backup, very good reslut with seed=4, optimizer used Adam
 
 class Config:
 
     # used in reward funtion
     cost_g_a = -0.01       # weight of global action cost
-    cost_g_v = -100     # weight of global voltage error cost
-    cost_l_a = -30       # weight of local action cost
+    cost_g_v = -50     # weight of global voltage error cost
+    cost_l_a = -20       # weight of local action cost
     cost_l_v = -0.01     # weight of local voltage error cost
 
     # traning golbal reward and local reward
@@ -15,10 +15,10 @@ class Config:
     # dead-zone offset, default deadzone is 0.05, use this offset to reduce dead-zon6
     dz_offset = 0.02
     # tarning rate
-    policy_learning_rate = 1e-4
+    policy_learning_rate = 2e-4
     value_learning_rate = 1e-3
     lr_discount = 0.5
-    policy_milestones = [1000,2000, 3000, 4000]       # change learning rate at specific steps
+    policy_milestones = [1000, 2000, 4000]       # change learning rate at specific steps
     value_milestones = [1500, 3000, 5000, 9000]
 
     # traing parameter
@@ -27,13 +27,13 @@ class Config:
     state_dim = 1           # voltage state
     topology_dim = 55       # topology matrix dimensions
     action_dim = 1
-    hidden_dim = 2048
+    hidden_dim = 512
     topology_hidden_dim = 256   # hidden neurons in topology nn module
-    total_episodes = 300
+    total_episodes = 500    
     total_steps = 64        # trajetory length each episode
     batch_size = 128
 
     # nn module parameter
-    topology_net_init_w = 0.02      # the range of uniform initial weight, [0, topology_net_init_w]
+    topology_net_init_w = 0.05      # the range of uniform initial weight, [0, topology_net_init_w]
 
 

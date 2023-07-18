@@ -109,7 +109,6 @@ class PolicyNetwork(nn.Module):
 class SafePolicyNetwork(nn.Module):
     def __init__(self, env, obs_dim, action_dim, hidden_dim, scale = 0.15, init_w=3e-3):
         super(SafePolicyNetwork, self).__init__()
-        logger.info('Safe DDPG policy Net initialization')
 
         self.env = env
         self.hidden_dim = hidden_dim
