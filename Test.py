@@ -12,7 +12,7 @@ from loguru import logger
 logger.remove()
 logger.add(sys.stderr, level='DEBUG')
 
-env_seed = 7        #10-h  5-h 0-l 1-h 2-l 3-l 4l 7h 8h 9l
+env_seed = 11        #10-h  5-h 0-l 1-h 2-l 3-l 4l 7h 8h 9l
 
 agent_num = 5
 agent_policy_net = []
@@ -22,7 +22,7 @@ safe_agent_net = []
 injection_bus = np.array([18, 21, 30, 45, 53])-1
 pp_net = create_56bus()
 env = VoltageCtrl_Env(pp_net, injection_bus)
-state, topology, senario = env.reset(seed=env_seed)
+state, topology, senario = env.reset_topo(seed=env_seed)
 topology = torch.cuda.FloatTensor(topology).unsqueeze(0)
 
 # plot policy
@@ -89,7 +89,9 @@ def plot_x_policy(policy_net, topology):
         
         a_array_baseline = np.zeros(N,)
         a_array = np.zeros(N,)
-        topology = torch.cuda.FloatTensor(env.topology_init * np.random.uniform(0.7,1.3)).unsqueeze(0)
+        #topology = torch.cuda.FloatTensor(env.topology_init * np.random.uniform(0.7,1.3)).unsqueeze(0)
+        state, topology, senario = env.reset_topo(seed=i)
+        topology = torch.cuda.FloatTensor(topology).unsqueeze(0)
         
         for j in range(N):
             state = torch.tensor([[0.80+0.01*j]])
@@ -120,7 +122,9 @@ for i in range(agent_num):
 
 for i in range(agent_num):
     #value_net_dict = torch.load(f'check_points/value_net/2023-06-19/Step_200_Seed_12_a{i}.pth')
-    policy_net_dict = torch.load(f'check_points/policy_net/2023-07-05/Step_300_Seed_45_a{i}.pth')
+    #policy_net_dict = torch.load(f'check_points/policy_net/2023-07-05/Step_300_Seed_45_a{i}.pth')
+    #policy_net_dict = torch.load(f'check_points/policy_net/2023-08-09/Step_250_Seed_23_a{i}.pth')
+    policy_net_dict = torch.load(f'check_points/policy_net/2023-08-14/Step_900_Seed_28_a{i}.pth')
 
     agent_policy_net[i].load_state_dict(policy_net_dict)
 
@@ -143,6 +147,8 @@ cost = []
 last_action = np.zeros((agent_num,1))
 
 done_record = True
+state, topology, senario = env.reset_topo(seed=env_seed)
+topology = torch.cuda.FloatTensor(topology).unsqueeze(0)
 for t in range(100):
     action = []
     for i in range(agent_num):
@@ -153,7 +159,7 @@ for t in range(100):
     if np.min(action) < -0.3 or np.max(action) > 0.3:
         logger.warning('control output saturated! min is {}, max is {}', np.min(action), np.max(action))
 
-    action = last_action - np.asarray(action)
+    action = last_action -np.asarray(action)
     
     last_action = np.copy(action)
     
@@ -190,7 +196,7 @@ cost_RL =  np.asarray(cost)
 logger.info('control cost of flexible controller is {}',episode_control)
 
 ### test the base line controller
-state, topology, senario = env.reset(seed=env_seed)
+state, topology, senario = env.reset_topo(seed=env_seed)
 episode_reward = 0
 episode_control = 0
 num_agent = 5
@@ -242,7 +248,7 @@ cost_baseline =  np.asarray(cost)
 logger.info('control cost of linear controller is {}',episode_control)
 
 ### test the safe policy net
-state,topology,senario = env.reset(seed=env_seed)
+state,topology,senario = env.reset_topo(seed=env_seed)
 episode_reward = 0
 episode_control = 0
 num_agent = 5
@@ -303,13 +309,16 @@ title = ['Bus 18', 'Bus 21', 'Bus 30', 'Bus 45', 'Bus 53']
 for i in range(agent_num):
     ax.plot(q_RL[:,i], label = title[i])
     ax.plot(safe_q[:,i], '-.', label = title[i])
+    ax.plot(q_baseline[:,i], '--')
 ax.legend(loc = 'upper right')
+plt.title('Controller Output')
 
 fig, ax = plt.subplots()
 ax.plot(cost_RL, label = 'RL')
 ax.plot(cost_baseline, label = 'Linear')
 ax.plot(safe_cost, label = 'SafeRL')
 ax.legend(loc = 'upper right')
+plt.title('Cost with Voltage and Q')
 
 #plt.show()
 
@@ -332,8 +341,9 @@ for i in range(len(index)):
 
 ax.legend(loc = 'upper right')
 
-state,topology,senario = env.reset(seed=env_seed)
+state,topology,senario = env.reset_topo(seed=env_seed)
 logger.debug(senario)
+ax.axhline(y=12.0, color='r')
 
 if senario == 0:
     ax.set_ylim([10, 12.6])

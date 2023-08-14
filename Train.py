@@ -135,7 +135,7 @@ for i in range(num_agent):
     if algorithm == 'TD3':
         agent = TD3(policy_net = policy_net, value_net = value_net, target_policy_net = target_policy_net,
                     target_value_net = target_value_net, value_lr = Config.value_learning_rate,
-                    policy_lr=Config.policy_learning_rate, max_action=0.5)
+                    policy_lr=Config.policy_learning_rate, max_action=Config.max_action)
     
     replay_buffer = ReplayBuffer(capacity=1000000)
     high_buffer = ReplayBuffer(capacity=1000000)
@@ -160,7 +160,7 @@ avg_reward_list = []
 
 for episode in range(num_episodes+1):
     #logger.info('------ now training episode {}  ------', episode)
-    state, topology, senario = env.reset(seed = episode)
+    state, topology, senario = env.reset_topo(seed = episode)
     #topology = env.network.line.x_ohm_per_km
     # episode_reward = (np.clip(np.max(state)-env.v0, 0, np.inf) + np.clip(env.v0 - np.min(state), 0, np.inf)) * 3000
     # logger.debug('add reward {} to episode', episode_reward)
@@ -188,10 +188,10 @@ for episode in range(num_episodes+1):
                 epsilon = np.random.normal(0, 0.2) / (episode+1)
             else:
                 epsilon = np.random.normal(0, 0.02)
-            epsilon = np.clip(epsilon, -0.3, 0.3)
+            epsilon = np.clip(epsilon, -0.5, 0.5)
             action_agent = action_agent.detach().cpu().numpy()[0] + epsilon #exploration
             logger.trace(action_agent)
-            action_agent = np.clip(action_agent, -0.5, 0.5)
+            action_agent = np.clip(action_agent, -Config.max_action, Config.max_action)
             action.append(action_agent)
 
         # PI policy    
@@ -216,7 +216,7 @@ for episode in range(num_episodes+1):
                                             next_state_buffer, done)
                 
                 # update both critic and actor network
-                if len(replay_buffer_list[i]) > 3*batch_size:
+                if len(replay_buffer_list[i]) > batch_size:
 
                     if algorithm == 'DDPG':
                         agent_list[i].train_step_uncertain(replay_buffer=replay_buffer_list[i], batch_size=batch_size)

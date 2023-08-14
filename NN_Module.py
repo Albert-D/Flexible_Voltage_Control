@@ -228,7 +228,7 @@ class FlexiblePolicyNet(nn.Module):
 
     def forward(self, state, topology):
         #logger.trace('input dimansion of nn are: {},{}',state.shape,topology.shape)
-        #topology = F.normalize(topology, dim=1)
+        topology = F.normalize(topology, dim=1)
         y1 = self.topology_net(topology)
 
         # input = torch.cat((state,topology), dim=1)
@@ -323,15 +323,15 @@ if __name__ == "__main__":
     logger.info(state.shape)
 
 
-    # topology_net = TopologyNet(topology_dim=55, output_dim=1, hidden_dim=100)
-    # net=FlexiblePolicyNet(env=env,topology_net=topology_net,action_dim=env.action_dim,obs_dim=env.obs_dim,hidden_dim=512)
+    topology_net = TopologyNet(topology_dim=55, output_dim=1, hidden_dim=100)
+    net=FlexiblePolicyNet(env=env,topology_net=topology_net,action_dim=env.action_dim,obs_dim=env.obs_dim,hidden_dim=512)
     safe_net=SafePolicyNetwork(env=env,action_dim=env.action_dim,obs_dim=env.obs_dim,hidden_dim=100)
 
     # y = net( torch.cuda.FloatTensor([[1]]), topology)
     
     # # logger.info(y)
-    plot_safe_net(safe_net)
-    # # plot_net(net, topology)
+    # plot_safe_net(safe_net)
+    plot_net(net, topology)
 
     # # logger.success(y)
 
