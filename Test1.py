@@ -12,7 +12,7 @@ from loguru import logger
 logger.remove()
 logger.add(sys.stderr, level='DEBUG')
 
-env_seed = 10        #10-h  5-h 0-l 1-h 2-l 3-l 4l 7h 8h 9l
+env_seed = 11        #10-h  5-h 0-l 1-h 2-l 3-l 4l 7h 8h 9l
 
 agent_num = 5
 agent_policy_net = []

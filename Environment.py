@@ -124,7 +124,7 @@ class VoltageCtrl_Env(gym.Env):
         agent_num = len(self.injection_bus)
         reward_sep = np.zeros(agent_num, )
         for i in range(agent_num):
-            reward_sep[i] = float(cost_l_a*LA.norm(action[i]) + cost_l_v * LA.norm(np.clip(self.state[i]-(self.v0), 0, np.inf))
+            reward_sep[i] = float(cost_l_a*LA.norm(action[i])**1.5 + cost_l_v * LA.norm(np.clip(self.state[i]-(self.v0), 0, np.inf))
                            + cost_l_v * LA.norm(np.clip((self.v0)-self.state[i], 0, np.inf)))    
         
         self.state = self.network.res_bus.iloc[self.injection_bus].vm_pu.to_numpy()
@@ -291,10 +291,10 @@ def create_56bus():
     pp.create_sgen(pp_net, 52, p_mw = 2, q_mvar=0)
 
     # define which lines can be closed or opened
-    # switch_lines = [7, 10, 12, 14, 22, 31, 33, 34, 35, 36, 37, 38, 41, 42, 46, 48, 50, 54]
-    # lines_connect_buses = [7, 10, 12, 14, 22, 31, 33, 33, 35, 33, 37, 38, 41, 41, 46, 48, 50, 52]
-    switch_lines = [7, 10, 14, 22, 33, 36, 41, 42, 46, 50]
-    lines_connect_buses = [7, 10, 14, 22, 33, 33, 41, 41, 46, 50]
+    switch_lines = [7, 10, 12, 14, 22, 31, 33, 34, 35, 36, 37, 38, 41, 42, 46, 48, 50, 54]
+    lines_connect_buses = [7, 10, 12, 14, 22, 31, 33, 33, 35, 33, 37, 38, 41, 41, 46, 48, 50, 52]
+    # switch_lines = [7, 10, 14, 22, 33, 36, 41, 42, 46, 50]
+    # lines_connect_buses = [7, 10, 14, 22, 33, 33, 41, 41, 46, 50]
 
     for i in range(len(switch_lines)):
         pp.create_switch(pp_net, bus=lines_connect_buses[i], 

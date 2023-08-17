@@ -12,7 +12,7 @@ from loguru import logger
 logger.remove()
 logger.add(sys.stderr, level='DEBUG')
 
-env_seed = 11        #10-h  5-h 0-l 1-h 2-l 3-l 4l 7h 8h 9l
+env_seed = 10        #10-h  5-h 0-l 1-h 2-l 3-l 4l 7h 8h 9l
 
 agent_num = 5
 agent_policy_net = []
@@ -124,7 +124,7 @@ for i in range(agent_num):
     #value_net_dict = torch.load(f'check_points/value_net/2023-06-19/Step_200_Seed_12_a{i}.pth')
     #policy_net_dict = torch.load(f'check_points/policy_net/2023-07-05/Step_300_Seed_45_a{i}.pth')
     #policy_net_dict = torch.load(f'check_points/policy_net/2023-08-09/Step_250_Seed_23_a{i}.pth')
-    policy_net_dict = torch.load(f'check_points/policy_net/2023-08-14/Step_900_Seed_28_a{i}.pth')
+    policy_net_dict = torch.load(f'check_points/policy_net/2023-08-15/Step_900_Seed_33_a{i}.pth')
 
     agent_policy_net[i].load_state_dict(policy_net_dict)
 

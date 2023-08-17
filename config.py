@@ -5,7 +5,7 @@ class Config:
     # used in reward funtion
     cost_g_a = -5       # weight of global action cost
     cost_g_v = -100     # weight of global voltage error cost
-    cost_l_a = -10       # weight of local action cost
+    cost_l_a = -5       # weight of local action cost
     cost_l_v = -50     # weight of local voltage error cost
 
     # traning golbal reward and local reward
@@ -18,7 +18,7 @@ class Config:
     policy_learning_rate = 2e-4
     value_learning_rate = 1e-3
     lr_discount = 0.5
-    policy_milestones = [1000]       # change learning rate at specific steps
+    policy_milestones = [1000,2000,4000]       # change learning rate at specific steps
     value_milestones = [1500, 3000, 5000, 9000]
 
     # traing parameter
@@ -33,7 +33,7 @@ class Config:
     total_steps = 32        # trajetory length each episode
     batch_size = 256
 
-    max_action = 0.5        #maximum output of q_dot
+    max_action = 1.0        #maximum output of q_dot
 
     # nn module parameter
     topology_net_init_w = 0.03      # the range of uniform initial weight, [0, topology_net_init_w]
