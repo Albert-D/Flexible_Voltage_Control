@@ -322,7 +322,7 @@ plt.title('Cost with Voltage and Q')
 
 #plt.show()
 
-index = [0, 1, 2, 3, 4] 
+index = [0, 1,] 
 labels = ['Bus 18 (Linear)', 'Bus 18 (Flexible-DDPG)', 'Bus 18 (safe-DDPG)',
           'Bus 21 (Linear)', 'Bus 21 (Flexible-DDPG)', 'Bus 21 (safe-DDPG)',
           'Bus 30 (Linear)', 'Bus 30 (Flexible-DDPG)', 'Bus 30 (safe-DDPG)',
