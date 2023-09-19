@@ -1,0 +1,44 @@
+2023-09-13 16:50:26.051 | WARNING  | __main__:<module>:164 - control output saturated! min is 9.100048373511527e-06, max is 2.1058349609375
+2023-09-13 16:50:26.113 | WARNING  | __main__:<module>:164 - control output saturated! min is 9.156221494777128e-06, max is 1.4508748054504395
+2023-09-13 16:50:26.173 | WARNING  | __main__:<module>:164 - control output saturated! min is 9.156221494777128e-06, max is 1.4469958543777466
+2023-09-13 16:50:26.236 | WARNING  | __main__:<module>:164 - control output saturated! min is 0.0, max is 1.4430744647979736
+2023-09-13 16:50:26.301 | WARNING  | __main__:<module>:164 - control output saturated! min is 0.0, max is 1.3214123249053955
+2023-09-13 16:50:26.363 | WARNING  | __main__:<module>:164 - control output saturated! min is 0.0, max is 1.3118088245391846
+2023-09-13 16:50:26.427 | WARNING  | __main__:<module>:164 - control output saturated! min is 0.0, max is 1.3043665885925293
+2023-09-13 16:50:26.489 | WARNING  | __main__:<module>:164 - control output saturated! min is 0.0, max is 0.7320860624313354
+2023-09-13 16:50:26.552 | WARNING  | __main__:<module>:164 - control output saturated! min is 0.0, max is 0.7297303676605225
+2023-09-13 16:50:26.613 | WARNING  | __main__:<module>:164 - control output saturated! min is 0.0, max is 0.7275241017341614
+2023-09-13 16:50:26.677 | WARNING  | __main__:<module>:164 - control output saturated! min is 0.0, max is 0.6894577741622925
+2023-09-13 16:50:26.739 | WARNING  | __main__:<module>:164 - control output saturated! min is 0.0, max is 0.6030338406562805
+2023-09-13 16:50:26.802 | WARNING  | __main__:<module>:164 - control output saturated! min is 0.0, max is 0.5244535803794861
+2023-09-13 16:50:26.865 | WARNING  | __main__:<module>:164 - control output saturated! min is 0.0, max is 0.4528570771217346
+2023-09-13 16:50:26.929 | WARNING  | __main__:<module>:164 - control output saturated! min is 0.0, max is 0.3876839876174927
+2023-09-13 16:50:26.992 | WARNING  | __main__:<module>:164 - control output saturated! min is 0.0, max is 0.3574753403663635
+2023-09-13 16:50:27.055 | WARNING  | __main__:<module>:164 - control output saturated! min is 0.0, max is 0.3539704978466034
+2023-09-13 16:50:27.118 | WARNING  | __main__:<module>:164 - control output saturated! min is 0.0, max is 0.3507275879383087
+2023-09-13 16:50:27.183 | WARNING  | __main__:<module>:164 - control output saturated! min is 0.0, max is 0.3477247953414917
+2023-09-13 16:50:27.201 | INFO     | __main__:<module>:178 - flexible contorller stable at step 18
+2023-09-13 16:50:27.203 | INFO     | __main__:<module>:179 - stable cost is 290.56502054904655
+2023-09-13 16:50:27.254 | WARNING  | __main__:<module>:164 - control output saturated! min is 0.0, max is 0.3449394702911377
+2023-09-13 16:50:27.318 | WARNING  | __main__:<module>:164 - control output saturated! min is 0.0, max is 0.3423531651496887
+2023-09-13 16:50:27.383 | WARNING  | __main__:<module>:164 - control output saturated! min is 0.0, max is 0.334024041891098
+2023-09-13 16:50:27.446 | WARNING  | __main__:<module>:164 - control output saturated! min is 0.0, max is 0.31114497780799866
+2023-09-13 16:50:32.020 | INFO     | __main__:<module>:200 - control cost of flexible controller is 2197.652486061989
+2023-09-13 16:50:33.526 | INFO     | __main__:<module>:254 - control cost of linear controller is 1196.2056749648893
+2023-09-13 16:50:33.571 | WARNING  | __main__:<module>:276 - control output saturated! min is 0.0, max is 1.2764470279216766
+2023-09-13 16:50:33.615 | WARNING  | __main__:<module>:276 - control output saturated! min is -1.862645149230957e-08, max is 0.9097975492477417
+2023-09-13 16:50:33.661 | WARNING  | __main__:<module>:276 - control output saturated! min is 0.0, max is 0.6803863495588303
+2023-09-13 16:50:33.702 | WARNING  | __main__:<module>:276 - control output saturated! min is 0.0, max is 0.5849727615714073
+2023-09-13 16:50:33.744 | WARNING  | __main__:<module>:276 - control output saturated! min is 0.0, max is 0.5359116941690445
+2023-09-13 16:50:33.787 | WARNING  | __main__:<module>:276 - control output saturated! min is 0.0, max is 0.49645446240901947
+2023-09-13 16:50:33.834 | WARNING  | __main__:<module>:276 - control output saturated! min is 0.0, max is 0.4639127478003502
+2023-09-13 16:50:33.879 | WARNING  | __main__:<module>:276 - control output saturated! min is 0.0, max is 0.4355333745479584
+2023-09-13 16:50:33.921 | WARNING  | __main__:<module>:276 - control output saturated! min is 0.0, max is 0.4102535545825958
+2023-09-13 16:50:33.962 | WARNING  | __main__:<module>:276 - control output saturated! min is 0.0, max is 0.3875354677438736
+2023-09-13 16:50:34.005 | WARNING  | __main__:<module>:276 - control output saturated! min is 0.0, max is 0.3670044243335724
+2023-09-13 16:50:34.048 | WARNING  | __main__:<module>:276 - control output saturated! min is 0.0, max is 0.34835100173950195
+2023-09-13 16:50:34.091 | WARNING  | __main__:<module>:276 - control output saturated! min is 0.0, max is 0.33131442964076996
+2023-09-13 16:50:34.132 | WARNING  | __main__:<module>:276 - control output saturated! min is -2.3283064365386963e-09, max is 0.3156382590532303
+2023-09-13 16:50:34.175 | WARNING  | __main__:<module>:276 - control output saturated! min is -1.1641532182693481e-09, max is 0.301053524017334
+2023-09-13 16:50:37.406 | INFO     | __main__:<module>:312 - control cost of safe-DDPG is 1693.9105686963687
+2023-09-13 16:50:37.891 | DEBUG    | __main__:<module>:364 - 1

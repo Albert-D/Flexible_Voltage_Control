@@ -50,7 +50,7 @@ def plot_policy(policy_net, topology):
             a_array_baseline[j] = -action_baseline[0]
             a_array[j] = -action
 
-        axs[i].plot(12*s_array, 2*a_array_baseline, '-.', label = 'Linear')
+        axs[i].plot(12*s_array, 5*a_array_baseline, '-.', label = 'Linear')
         axs[i].plot(12*s_array, a_array, label = 'Flexible-DDPG')
         axs[i].set_title(title[i])
         axs[i].legend(loc='lower left')
@@ -99,13 +99,13 @@ def plot_x_policy(policy_net, topology):
 
             action_baseline = (np.maximum(state.cpu()-1.05, 0)-np.maximum(0.95-state.cpu(), 0)).reshape((1,))
         
-            action = policy_net[0](state, topology)
+            action = policy_net[1](state, topology)
             action = action.detach().cpu().numpy()[0]
             
             a_array_baseline[j] = -action_baseline[0]
             a_array[j] = -action
 
-        axs.plot(12*s_array, a_array_baseline, '-.', label = 'Linear')
+        axs.plot(12*s_array, 5*a_array_baseline, '-.', label = 'Linear')
         axs.plot(12*s_array, a_array, label = 'Flexible-DDPG')
         axs.legend(loc='lower left')
         plt.pause(0.1)
@@ -113,7 +113,7 @@ def plot_x_policy(policy_net, topology):
 ### load nn model parameter from saved model 
 for i in range(agent_num):
     topology_net = TopologyNet(topology_dim=55, output_dim=1, hidden_dim=Config.topology_hidden_dim)
-    policy_net = FlexiblePolicyNet(env=env, topology_net=topology_net, obs_dim=1, action_dim=1, hidden_dim=Config.hidden_dim).to(device)
+    policy_net = FlexiblePolicyNet(env=env, topology_net=topology_net, obs_dim=1, action_dim=1, hidden_dim=Config.hidden_dim_56bus).to(device)
     agent_policy_net.append(policy_net)
 
 for i in range(agent_num):

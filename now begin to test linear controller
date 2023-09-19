@@ -1,0 +1,18 @@
+2023-09-13 16:50:33.526 | INFO     | __main__:<module>:254 - control cost of linear controller is 1196.2056749648893
+2023-09-13 16:50:33.571 | WARNING  | __main__:<module>:276 - control output saturated! min is 0.0, max is 1.2764470279216766
+2023-09-13 16:50:33.615 | WARNING  | __main__:<module>:276 - control output saturated! min is -1.862645149230957e-08, max is 0.9097975492477417
+2023-09-13 16:50:33.661 | WARNING  | __main__:<module>:276 - control output saturated! min is 0.0, max is 0.6803863495588303
+2023-09-13 16:50:33.702 | WARNING  | __main__:<module>:276 - control output saturated! min is 0.0, max is 0.5849727615714073
+2023-09-13 16:50:33.744 | WARNING  | __main__:<module>:276 - control output saturated! min is 0.0, max is 0.5359116941690445
+2023-09-13 16:50:33.787 | WARNING  | __main__:<module>:276 - control output saturated! min is 0.0, max is 0.49645446240901947
+2023-09-13 16:50:33.834 | WARNING  | __main__:<module>:276 - control output saturated! min is 0.0, max is 0.4639127478003502
+2023-09-13 16:50:33.879 | WARNING  | __main__:<module>:276 - control output saturated! min is 0.0, max is 0.4355333745479584
+2023-09-13 16:50:33.921 | WARNING  | __main__:<module>:276 - control output saturated! min is 0.0, max is 0.4102535545825958
+2023-09-13 16:50:33.962 | WARNING  | __main__:<module>:276 - control output saturated! min is 0.0, max is 0.3875354677438736
+2023-09-13 16:50:34.005 | WARNING  | __main__:<module>:276 - control output saturated! min is 0.0, max is 0.3670044243335724
+2023-09-13 16:50:34.048 | WARNING  | __main__:<module>:276 - control output saturated! min is 0.0, max is 0.34835100173950195
+2023-09-13 16:50:34.091 | WARNING  | __main__:<module>:276 - control output saturated! min is 0.0, max is 0.33131442964076996
+2023-09-13 16:50:34.132 | WARNING  | __main__:<module>:276 - control output saturated! min is -2.3283064365386963e-09, max is 0.3156382590532303
+2023-09-13 16:50:34.175 | WARNING  | __main__:<module>:276 - control output saturated! min is -1.1641532182693481e-09, max is 0.301053524017334
+2023-09-13 16:50:37.406 | INFO     | __main__:<module>:312 - control cost of safe-DDPG is 1693.9105686963687
+2023-09-13 16:50:37.891 | DEBUG    | __main__:<module>:364 - 1

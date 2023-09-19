@@ -9,6 +9,7 @@ from loguru import logger
 import os
 from datetime import date
 import keyboard
+import shutil
 
 import torch
 import matplotlib.pyplot as plt
@@ -34,13 +35,28 @@ print(f"Using {device} device")
 logger.remove()
 logger.add(sys.stderr, level='DEBUG')
 
+### create two new folder to save result
+today = date.today()
+if not os.path.exists(f'images/policy_img/{today}/'):
+    os.makedirs(f'images/policy_img/{today}/')
+if not os.path.exists(f'images/reward_img/{today}/'):
+    os.makedirs(f'images/reward_img/{today}/')
+
 ### define training algorithm 'DDPG' or 'TD3'
 algorithm = 'TD3'
 
+### define which envrionment to use, '56bus' or '123bus'
+ENV = '123bus'
+
 ### create trainning environment
-injection_bus = np.array([18, 21, 30, 45, 53])-1
-pp_net = create_56bus()
-env = VoltageCtrl_Env(pp_net, injection_bus)
+if ENV == '56bus':
+    injection_bus = np.array([18, 21, 30, 45, 53])-1
+    pp_net = create_56bus()
+    env = VoltageCtrl_Env(pp_net, injection_bus)
+elif ENV == '123bus':
+    injection_bus = np.array([9, 10, 15, 19, 32, 35, 47, 58, 65, 74, 82, 91, 103, 60]) #11, 36, 75,/ 1,5,9
+    pp_net = create_123bus()
+    env = Env_123bus(pp_net, injection_bus)
 
 # Read the seed value from the configuration file or initialize it to 0
 try:
@@ -53,7 +69,11 @@ seed += 1
 with open('seed.txt', 'w') as file:
     file.write(str(seed))
 
-num_agent = Config.agent_num
+save_config = os.path.join(f'images/reward_img/{today}/', f'config_{seed}.py')
+shutil.copy('config.py', save_config)
+logger.info(f'config file saved to {save_config}')
+
+num_agent = env.agentnum                # agent number is defined by environment
 obs_dim = Config.obs_dim
 action_dim = Config.action_dim
 hidden_dim = Config.hidden_dim
@@ -69,12 +89,18 @@ Create Agent list and replay buffer
 torch.manual_seed(seed)
 
 #be careful that this figure is defined galbal but use in function below
-fig, axs = plt.subplots(1, 5, figsize=(15,3))
-title = ['Bus 18', 'Bus 21', 'Bus 30', 'Bus 45', 'Bus 53']
+if ENV == '56bus':
+    fig, axs = plt.subplots(1, 5, figsize=(15,3))
+    title = ['Bus 18', 'Bus 21', 'Bus 30', 'Bus 45', 'Bus 53']
+elif ENV == '123bus':
+    fig, axs = plt.subplots(2, 7, figsize=(15,6))
+    title = ['Bus 9', 'Bus 10', 'Bus 15', 'Bus19', 'Bus 32', 'Bus 35', 'Bus 47', 
+                'Bus 58', 'Bus 65', 'Bus 74', 'Bus 72', 'Bus 91', 'Bus 103', 'Bus 60']
+
 def plot_policy(agent_list, topology):
     plt.cla()
     for i in range(num_agent):
-        axs[i].clear()
+        axs[i//7][i%7].clear()
         # plot policy
         N = 40
         s_array = np.zeros(N,)
@@ -94,10 +120,10 @@ def plot_policy(agent_list, topology):
             a_array_baseline[j] = -action_baseline[0]
             a_array[j] = -action
 
-        axs[i].plot(12*s_array, 2*a_array_baseline, '-.', label = 'Linear')
-        axs[i].plot(12*s_array, a_array, label = 'Flexible-DDPG')
-        axs[i].set_title(title[i])
-        axs[i].legend(loc='lower left')
+        axs[i//7][i%7].plot(12*s_array, 10*a_array_baseline, '-.', label = 'Linear')
+        axs[i//7][i%7].plot(12*s_array, a_array, label = 'Flexible-DDPG')
+        axs[i//7][i%7].set_title(title[i])
+        axs[i//7][i%7].legend(loc='lower left')
 
     plt.pause(0.1)
 
@@ -117,7 +143,7 @@ for i in range(num_agent):
         target_value_net = Q_Network(obs_dim=1, action_dim=action_dim,hidden_dim=256).to(device)
 
     # Initialize the actor netowrk
-    topology_net = TopologyNet(topology_dim=55, output_dim=1, hidden_dim=topology_hidden_dim)
+    topology_net = TopologyNet(topology_dim=env.topology_dim, output_dim=1, hidden_dim=topology_hidden_dim)
     policy_net = FlexiblePolicyNet(env=env, topology_net=topology_net, obs_dim=obs_dim, 
                                    action_dim=action_dim, hidden_dim=hidden_dim).to(device)
     target_policy_net = FlexiblePolicyNet(env=env, topology_net=topology_net, obs_dim=obs_dim, 
@@ -168,14 +194,11 @@ for episode in range(num_episodes+1):
     last_action = np.zeros((num_agent,1))
     plot_policy(agent_list,torch.cuda.FloatTensor(topology).unsqueeze(0))
     if episode%50==0:
-        today = date.today()
-        if not os.path.exists(f'images/policy_img/{today}/'):
-            os.makedirs(f'images/policy_img/{today}/')
         plt.savefig(f'images/policy_img/{today}/seed{seed}_episode_{episode}.png')
         logger.info(f'save policy image to images/policy_img/{today}/seed{seed}_episode_{episode}.png')
 
     for step in range(num_steps):
-        if keyboard.is_pressed('esc'):
+        if keyboard.is_pressed('end'):
             break
 
         action = []
@@ -184,10 +207,10 @@ for episode in range(num_episodes+1):
             # sample action according to the current policy and exploration noise
             state_i = torch.cuda.FloatTensor(state[i].reshape(1,)).unsqueeze(0)
             action_agent = agent_list[i].policy_net(state_i, topology)
-            if episode < 20:
-                epsilon = np.random.normal(0, 0.2) / (episode+1)
+            if episode < 30:
+                epsilon = np.random.normal(0, 0.5) / (episode+1)
             else:
-                epsilon = np.random.normal(0, 0.02)
+                epsilon = np.random.normal(0, 0.05)
             epsilon = np.clip(epsilon, -0.5, 0.5)
             action_agent = action_agent.detach().cpu().numpy()[0] + epsilon #exploration
             logger.trace(action_agent)
@@ -196,6 +219,7 @@ for episode in range(num_episodes+1):
 
         # PI policy    
         action = last_action - np.asarray(action)
+        # action = np.clip(action, -5.0, 5.0)
 
         # execute action a_t and observe reward r_t and observe next state s_{t+1}
         next_state, topology, reward, reward_sep, done = env.step_uncertain(action)
@@ -241,9 +265,8 @@ for episode in range(num_episodes+1):
 
         last_action = np.copy(action)
 
-    if keyboard.is_pressed('esc'):
+    if keyboard.is_pressed('end'):
         logger.warning("Training process terminated by user!")
-
         today = date.today()
         value_pth = f'check_points/value_net/{today}/'
         policy_pth = f'check_points/policy_net/{today}/'
@@ -252,7 +275,11 @@ for episode in range(num_episodes+1):
             torch.save(agent_list[i].policy_net.state_dict(), policy_pth + f'Step_{episode}_Seed_{seed}_a{i}.pth')
             logger.info('value net parameters had saved to {}', value_pth + f'Step_{episode}_Seed_{seed}_a{i}.pth')
             logger.info('policy_net parameters had saved to {}', policy_pth + f'Step_{episode}_Seed_{seed}_a{i}.pth')
+
+        plt.savefig(f'images/policy_img/{today}/seed{seed}_episode_{episode}.png')
+        logger.info(f'save policy image to images/policy_img/{today}/seed{seed}_episode_{episode}.png')
         break
+
     if not done:
         logger.info('episode {} finish with entire step!', episode)
     logger.info('reward of this trojectory was {}', episode_reward)
@@ -274,13 +301,10 @@ for episode in range(num_episodes+1):
         for i in range(num_agent):
             torch.save(agent_list[i].value_net.state_dict(), value_pth + f'Step_{episode}_Seed_{seed}_a{i}.pth')
             torch.save(agent_list[i].policy_net.state_dict(), policy_pth + f'Step_{episode}_Seed_{seed}_a{i}.pth')
-            logger.info('value net parameters had saved to {}', value_pth + f'Step_{episode}_Seed_{seed}_a{i}.pth')
-            logger.info('policy_net parameters had saved to {}', policy_pth + f'Step_{episode}_Seed_{seed}_a{i}.pth')
+            logger.info('value net parameters had saved to : {}', value_pth + f'Step_{episode}_Seed_{seed}_a{i}.pth')
+            logger.info('policy_net parameters had saved to : {}', policy_pth + f'Step_{episode}_Seed_{seed}_a{i}.pth')
         
     avg_reward_list.append(avg_reward)
-
-if not os.path.exists(f'images/reward_img/{today}/'):
-    os.makedirs(f'images/reward_img/{today}/')
 
 # plot the reward 
 fig2, axs2 = plt.subplots(1, 1)

@@ -3,10 +3,10 @@
 class Config:
 
     # used in reward funtion
-    cost_g_a = -5       # weight of global action cost
-    cost_g_v = -100     # weight of global voltage error cost
+    cost_g_a = -0       # weight of global action cost
+    cost_g_v = -50     # weight of global voltage error cost
     cost_l_a = -5       # weight of local action cost
-    cost_l_v = -50     # weight of local voltage error cost
+    cost_l_v = -100     # weight of local voltage error cost
 
     # traning golbal reward and local reward
     r_global_weight = 0.5
@@ -27,13 +27,14 @@ class Config:
     state_dim = 1           # voltage state
     topology_dim = 55       # topology matrix dimensions
     action_dim = 1
-    hidden_dim = 2048
+    hidden_dim = 1024
+    hidden_dim_56bus = 2048
     topology_hidden_dim = 256   # hidden neurons in topology nn module
     total_episodes = 1000
-    total_steps = 32        # trajetory length each episode
+    total_steps = 60        # trajetory length each episode
     batch_size = 256
 
-    max_action = 1.0        #maximum output of q_dot
+    max_action = 25        #maximum output of q_dot
 
     # nn module parameter
     topology_net_init_w = 0.03      # the range of uniform initial weight, [0, topology_net_init_w]

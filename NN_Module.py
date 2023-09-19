@@ -193,7 +193,7 @@ class TopologyNet(nn.Module):
         x = torch.relu(self.linear2(x))
         x = F.relu(self.linear3(x))
 
-        return x
+        return x+0.01
 
 
 # define flexible safety policy network (our policy)
@@ -240,10 +240,10 @@ class FlexiblePolicyNet(nn.Module):
         # self.w_plus = self.q.clamp(min=0) @ self.w_triangle
         # self.w_minus = -self.z.clamp(min=0) @ self.w_triangle
 
-        self.b.data = self.b.data.clamp(min=0)
-        self.c.data = self.c.data.clamp(min=0)
-        # self.b.data = self.b.data.clamp(min=0) / torch.norm(self.b.data, 1) * self.scale
-        # self.c.data = self.c.data.clamp(min=0) / torch.norm(self.c.data, 1) * self.scale
+        # self.b.data = self.b.data.clamp(min=0)
+        # self.c.data = self.c.data.clamp(min=0)
+        self.b.data = self.b.data.clamp(min=0) / torch.norm(self.b.data, 1) * self.scale
+        self.c.data = self.c.data.clamp(min=0) / torch.norm(self.c.data, 1) * self.scale
 
         self.b_plus=torch.matmul(-self.b, self.b_triangle) - torch.tensor(self.env.vmax - 0.01)
         self.b_minus=torch.matmul(-self.b, self.b_triangle) + torch.tensor(self.env.vmin + 0.01)
