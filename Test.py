@@ -12,7 +12,7 @@ from loguru import logger
 logger.remove()
 logger.add(sys.stderr, level='DEBUG')
 
-env_seed = 10        #10-h  5-h 0-l 1-h 2-l 3-l 4l 7h 8h 9l
+env_seed = 8        #10-h  5-h 0-l 1-h 2-l 3-l 4l 7h 8h 9l 6l
 
 agent_num = 5
 agent_policy_net = []
@@ -25,6 +25,12 @@ env = VoltageCtrl_Env(pp_net, injection_bus)
 state, topology, senario = env.reset_topo(seed=env_seed)
 topology = torch.cuda.FloatTensor(topology).unsqueeze(0)
 
+def moving_average(a, n=3):
+    # Padding the array to maintain the length after convolution.
+    pad = np.pad(a, (n//2, n-1-n//2), mode='edge')
+    ret = np.convolve(pad, np.ones(n), mode='valid') / n
+    return ret
+
 # plot policy
 def plot_policy(policy_net, topology):
     fig, axs = plt.subplots(1, 5, figsize=(15,3))
@@ -32,14 +38,14 @@ def plot_policy(policy_net, topology):
     for i in range(5):
         axs[i].clear()
         # plot policy
-        N = 40
+        N = 400
         s_array = np.zeros(N,)
         
         a_array_baseline = np.zeros(N,)
         a_array = np.zeros(N,)
         
         for j in range(N):
-            state = torch.tensor([[0.80+0.01*j]])
+            state = torch.tensor([[0.80+0.001*j]])
             s_array[j] = state
 
             action_baseline = (np.maximum(state.cpu()-1.05, 0)-np.maximum(0.95-state.cpu(), 0)).reshape((1,))
@@ -50,8 +56,9 @@ def plot_policy(policy_net, topology):
             a_array_baseline[j] = -action_baseline[0]
             a_array[j] = -action
 
+        a_array_s = moving_average(a_array, n=20)
         axs[i].plot(12*s_array, 5*a_array_baseline, '-.', label = 'Linear')
-        axs[i].plot(12*s_array, a_array, label = 'Flexible-DDPG')
+        axs[i].plot(12*s_array, a_array_s, label = 'Flexible-DDPG')
         axs[i].set_title(title[i])
         axs[i].legend(loc='lower left')
 
@@ -59,14 +66,14 @@ def plot_safe_net(net):
     fig, axs = plt.subplots(1, 5, figsize=(15,3))
     title = ['Bus 18', 'Bus 21', 'Bus 30', 'Bus 45', 'Bus 53']
     for i in range(agent_num):
-        N = 40
+        N = 400
         s_array = np.zeros(N,)
         
         a_array_baseline = np.zeros(N,)
         a_array = np.zeros(N,)
         
         for j in range(N):
-            state = np.array([0.8+0.01*j])
+            state = np.array([0.8+0.001*j])
             s_array[j] = state
 
             action_baseline = (np.maximum(state-1.05, 0)-np.maximum(0.95-state, 0)).reshape((1,))
@@ -84,7 +91,7 @@ def plot_x_policy(policy_net, topology):
     fig, axs = plt.subplots()
     for i in range(5):
         # plot policy
-        N = 40
+        N = 400
         s_array = np.zeros(N,)
         
         a_array_baseline = np.zeros(N,)
@@ -94,19 +101,20 @@ def plot_x_policy(policy_net, topology):
         topology = torch.cuda.FloatTensor(topology).unsqueeze(0)
         
         for j in range(N):
-            state = torch.tensor([[0.80+0.01*j]])
+            state = torch.tensor([[0.80+0.001*j]])
             s_array[j] = state
 
             action_baseline = (np.maximum(state.cpu()-1.05, 0)-np.maximum(0.95-state.cpu(), 0)).reshape((1,))
         
-            action = policy_net[1](state, topology)
+            action = policy_net[0](state, topology)
             action = action.detach().cpu().numpy()[0]
             
             a_array_baseline[j] = -action_baseline[0]
             a_array[j] = -action
 
+        a_array_s = moving_average(a_array, n = 20)
         axs.plot(12*s_array, 5*a_array_baseline, '-.', label = 'Linear')
-        axs.plot(12*s_array, a_array, label = 'Flexible-DDPG')
+        axs.plot(12*s_array, a_array_s, label = 'Flexible-DDPG')
         axs.legend(loc='lower left')
         plt.pause(0.1)
 
@@ -122,9 +130,9 @@ for i in range(agent_num):
 
 for i in range(agent_num):
     #value_net_dict = torch.load(f'check_points/value_net/2023-06-19/Step_200_Seed_12_a{i}.pth')
-    #policy_net_dict = torch.load(f'check_points/policy_net/2023-07-05/Step_300_Seed_45_a{i}.pth')
     #policy_net_dict = torch.load(f'check_points/policy_net/2023-08-09/Step_250_Seed_23_a{i}.pth')
-    policy_net_dict = torch.load(f'check_points/policy_net/2023-08-15/Step_900_Seed_33_a{i}.pth')
+    #policy_net_dict = torch.load(f'check_points/policy_net/2023-08-15/Step_900_Seed_33_a{i}.pth')
+    policy_net_dict = torch.load(f'check_points/policy_net/2023-09-21/Step_900_Seed_10_a{i}.pth')
 
     agent_policy_net[i].load_state_dict(policy_net_dict)
 
@@ -156,7 +164,7 @@ for t in range(100):
         action_agent = action_agent.detach().cpu().numpy()[0]
         action.append(action_agent)
 
-    if np.min(action) < -0.3 or np.max(action) > 0.3:
+    if np.min(action) < -1.0 or np.max(action) > 1.0:
         logger.warning('control output saturated! min is {}, max is {}', np.min(action), np.max(action))
 
     action = last_action -np.asarray(action)
@@ -194,6 +202,7 @@ voltage_RL = np.asarray(voltage)
 q_RL =  np.asarray(q)
 cost_RL =  np.asarray(cost)
 logger.info('control cost of flexible controller is {}',episode_control)
+logger.info('objective of flexible controller is {}', np.sum(cost_RL))
 
 ### test the base line controller
 state, topology, senario = env.reset_topo(seed=env_seed)
@@ -246,6 +255,7 @@ voltage_baseline = np.asarray(voltage)
 q_baseline =  np.asarray(q)
 cost_baseline =  np.asarray(cost)
 logger.info('control cost of linear controller is {}',episode_control)
+logger.info('objective of linear controller is {}', np.sum(cost_baseline))
 
 ### test the safe policy net
 state,topology,senario = env.reset_topo(seed=env_seed)
@@ -264,7 +274,7 @@ for t in range(100):
         action_agent = safe_agent_net[i].get_action(torch.cuda.FloatTensor([state[i]]).float().reshape(1,1))
         action.append(action_agent)
 
-    if 5*np.min(action) < -0.3 or 5*np.max(action) > 0.3:
+    if 5*np.min(action) < -1.0 or 5*np.max(action) > 1.0:
         logger.warning('control output saturated! min is {}, max is {}', 5*np.min(action), 5*np.max(action))
     
     action = last_action - 5*np.asarray(action).reshape((num_agent, 1))
@@ -302,6 +312,7 @@ safe_voltage = np.asarray(safe_voltage)
 safe_q =  np.asarray(safe_q)
 safe_cost =  np.asarray(safe_cost)
 logger.info('control cost of safe-DDPG is {}',episode_control)
+logger.info('objective of linear controller is {}', np.sum(safe_cost))
 
 
 fig, ax = plt.subplots()
@@ -322,7 +333,7 @@ plt.title('Cost with Voltage and Q')
 
 #plt.show()
 
-index = [0, 1,] 
+index = [0, 1, 2, 3, 4] 
 labels = ['Bus 18 (Linear)', 'Bus 18 (Flexible-DDPG)', 'Bus 18 (safe-DDPG)',
           'Bus 21 (Linear)', 'Bus 21 (Flexible-DDPG)', 'Bus 21 (safe-DDPG)',
           'Bus 30 (Linear)', 'Bus 30 (Flexible-DDPG)', 'Bus 30 (safe-DDPG)',

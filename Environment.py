@@ -31,6 +31,11 @@ cost_w_v = Config.cost_g_v     # weight of voltage error cost
 cost_l_a = Config.cost_l_a
 cost_l_v = Config.cost_l_v
 
+cost_w_a_56bus = Config.cost_g_a_56bus
+cost_w_v_56bus = Config.cost_g_v_56bus
+cost_l_a_56bus = Config.cost_l_a_56bus
+cost_l_v_56bus = Config.cost_l_v_56bus
+
 class VoltageCtrl_Env(gym.Env):
     def __init__(self, pp_net, injection_bus, v0=1, vmax=1.05, vmin=0.95):
         self.network =  pp_net
@@ -60,8 +65,8 @@ class VoltageCtrl_Env(gym.Env):
         done = False 
         
         # $-5*|u|^2 -100 * |max(v-v_max,0)|^2 -100 * |max(v_min-v,0)|^2$
-        reward = float(-50*LA.norm(action) -100*LA.norm(np.clip(self.state-self.vmax, 0, np.inf))
-                       - 100*LA.norm(np.clip(self.vmin-self.state, 0, np.inf)))
+        reward = float(-1*LA.norm(action) -100*LA.norm(np.clip(self.state-self.v0, 0, np.inf))
+                       - 100*LA.norm(np.clip(self.v0-self.state, 0, np.inf)))
         
         # state-transition dynamics
         for i in range(self.agentnum):
@@ -119,14 +124,14 @@ class VoltageCtrl_Env(gym.Env):
 
         pp.runpp(self.network, algorithm='bfsw', init = 'dc')
 
-        reward = float(cost_w_a * LA.norm(action)**1.5+ cost_w_v * LA.norm(np.clip(self.state-(self.v0), 0, np.inf))
-            + cost_w_v * LA.norm(np.clip((self.v0)-self.state, 0, np.inf)))
+        reward = float(cost_w_a_56bus * LA.norm(action)**2+ cost_w_v_56bus * LA.norm(np.clip(self.state-(self.v0), 0, np.inf))
+            + cost_w_v_56bus * LA.norm(np.clip((self.v0)-self.state, 0, np.inf)))
         
         agent_num = len(self.injection_bus)
         reward_sep = np.zeros(agent_num, )
         for i in range(agent_num):
-            reward_sep[i] = float(cost_l_a*LA.norm(action[i])**1.5 + cost_l_v * LA.norm(np.clip(self.state[i]-(self.v0), 0, np.inf))
-                           + cost_l_v * LA.norm(np.clip((self.v0)-self.state[i], 0, np.inf)))    
+            reward_sep[i] = float(cost_l_a_56bus*LA.norm(action[i])**2 + cost_l_v_56bus * LA.norm(np.clip(self.state[i]-(self.v0), 0, np.inf))
+                           + cost_l_v_56bus * LA.norm(np.clip((self.v0)-self.state[i], 0, np.inf)))    
         
         self.state = self.network.res_bus.iloc[self.injection_bus].vm_pu.to_numpy()
         state_all = self.network.res_bus.vm_pu.to_numpy()
@@ -261,7 +266,7 @@ class VoltageCtrl_Env(gym.Env):
             self.network.switch.at[i, 'closed'] = random_change_lsit[i]
             if not random_change_lsit[i]:
 
-                self.topology[self.network.switch.element[i]] = np.random.uniform(0,0.01)
+                self.topology[self.network.switch.element[i]] = np.random.uniform(-0.01,0.01)
 
         
         pp.runpp(self.network, algorithm='bfsw')

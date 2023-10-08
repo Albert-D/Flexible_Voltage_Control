@@ -46,7 +46,7 @@ if not os.path.exists(f'images/reward_img/{today}/'):
 algorithm = 'TD3'
 
 ### define which envrionment to use, '56bus' or '123bus'
-ENV = '123bus'
+ENV = '56bus'
 
 ### create trainning environment
 if ENV == '56bus':
@@ -82,6 +82,13 @@ num_episodes = Config.total_episodes
 num_steps = Config.total_steps          # trajetory length each episode
 batch_size = Config.batch_size
 plot = False                            # if/not plot trained policy every # episodes
+if ENV == '56bus':
+    maxaction = Config.max_action_56bus
+    minaction = -Config.max_action_56bus
+elif ENV == '123bus':
+    maxaction = Config.max_action
+    minaction = -Config.max_action
+
 
 """
 Create Agent list and replay buffer
@@ -100,7 +107,10 @@ elif ENV == '123bus':
 def plot_policy(agent_list, topology):
     plt.cla()
     for i in range(num_agent):
-        axs[i//7][i%7].clear()
+        if ENV == '123bus':
+            axs[i//7][i%7].clear()
+        elif ENV == '56bus':
+            axs[i].clear()
         # plot policy
         N = 40
         s_array = np.zeros(N,)
@@ -120,10 +130,16 @@ def plot_policy(agent_list, topology):
             a_array_baseline[j] = -action_baseline[0]
             a_array[j] = -action
 
-        axs[i//7][i%7].plot(12*s_array, 10*a_array_baseline, '-.', label = 'Linear')
-        axs[i//7][i%7].plot(12*s_array, a_array, label = 'Flexible-DDPG')
-        axs[i//7][i%7].set_title(title[i])
-        axs[i//7][i%7].legend(loc='lower left')
+        if ENV == '123bus':
+            axs[i//7][i%7].plot(12*s_array, 10*a_array_baseline, '-.', label = 'Linear')
+            axs[i//7][i%7].plot(12*s_array, a_array, label = 'Flexible-DDPG')
+            axs[i//7][i%7].set_title(title[i])
+            axs[i//7][i%7].legend(loc='lower left')
+        elif ENV == '56bus':
+            axs[i].plot(12*s_array, 5*a_array_baseline, '-.', label = 'Linear')
+            axs[i].plot(12*s_array, a_array, label = 'Flexible-DDPG')
+            axs[i].set_title(title[i])
+            axs[i].legend(loc='lower left')
 
     plt.pause(0.1)
 
@@ -145,9 +161,9 @@ for i in range(num_agent):
     # Initialize the actor netowrk
     topology_net = TopologyNet(topology_dim=env.topology_dim, output_dim=1, hidden_dim=topology_hidden_dim)
     policy_net = FlexiblePolicyNet(env=env, topology_net=topology_net, obs_dim=obs_dim, 
-                                   action_dim=action_dim, hidden_dim=hidden_dim).to(device)
+                                   action_dim=action_dim, hidden_dim=Config.hidden_dim_56bus).to(device)
     target_policy_net = FlexiblePolicyNet(env=env, topology_net=topology_net, obs_dim=obs_dim, 
-                                          action_dim=action_dim, hidden_dim=hidden_dim).to(device)
+                                          action_dim=action_dim, hidden_dim=Config.hidden_dim_56bus).to(device)
 
     for target_param, param in zip(target_value_net.parameters(), value_net.parameters()):
         target_param.data.copy_(param.data)
@@ -214,7 +230,7 @@ for episode in range(num_episodes+1):
             epsilon = np.clip(epsilon, -0.5, 0.5)
             action_agent = action_agent.detach().cpu().numpy()[0] + epsilon #exploration
             logger.trace(action_agent)
-            action_agent = np.clip(action_agent, -Config.max_action, Config.max_action)
+            action_agent = np.clip(action_agent, minaction, maxaction)
             action.append(action_agent)
 
         # PI policy    

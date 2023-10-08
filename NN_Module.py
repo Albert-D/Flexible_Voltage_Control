@@ -245,8 +245,10 @@ class FlexiblePolicyNet(nn.Module):
         self.b.data = self.b.data.clamp(min=0) / torch.norm(self.b.data, 1) * self.scale
         self.c.data = self.c.data.clamp(min=0) / torch.norm(self.c.data, 1) * self.scale
 
-        self.b_plus=torch.matmul(-self.b, self.b_triangle) - torch.tensor(self.env.vmax - 0.01)
-        self.b_minus=torch.matmul(-self.b, self.b_triangle) + torch.tensor(self.env.vmin + 0.01)
+        self.b_plus=torch.matmul(-self.b, self.b_triangle) - torch.tensor(self.env.vmax - 0.005)
+        self.b_minus=torch.matmul(-self.b, self.b_triangle) + torch.tensor(self.env.vmin + 0.005)
+        # self.b_plus=torch.matmul(-self.b, self.b_triangle) - torch.tensor(self.env.vmax)
+        # self.b_minus=torch.matmul(-self.b, self.b_triangle) + torch.tensor(self.env.vmin)
 
         self.nonlinear_plus = F.relu(input @ (torch.ones(input_dim, self.hidden_dim)) + 
                                 self.b_plus.view(1, self.hidden_dim)) @ self.w_plus.t()
