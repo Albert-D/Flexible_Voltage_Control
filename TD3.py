@@ -24,13 +24,15 @@ class TD3(object):
 
         ### Adam as default
         self.policy_net_optimizer = optim.Adam(self.policy_net.parameters(), lr=policy_lr)
-        self.policy_net_scheduler = lr_scheduler.MultiStepLR(self.policy_net_optimizer, milestones=Config.value_milestones, gamma=0.5)
+        self.policy_net_scheduler = lr_scheduler.MultiStepLR(self.policy_net_optimizer, 
+                                                             milestones=Config.policy_milestones, gamma=Config.lr_discount)
 
         self.value_net = value_net
         self.target_value_net = target_value_net
         # self.target_value_net.load_state_dict(self.value_net.state_dict())
         self.value_net_optimizer = optim.Adam(self.value_net.parameters(), lr=value_lr)
-        self.value_net_scheduler = lr_scheduler.MultiStepLR(self.value_net_optimizer, milestones=Config.value_milestones, gamma=0.5)
+        self.value_net_scheduler = lr_scheduler.MultiStepLR(self.value_net_optimizer, 
+                                                            milestones=Config.value_milestones, gamma=Config.lr_discount)
 
         self.max_action = max_action
         self.total_it = 0

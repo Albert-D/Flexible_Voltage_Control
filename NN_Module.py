@@ -181,9 +181,9 @@ class TopologyNet(nn.Module):
         self.linear2 = nn.Linear(hidden_dim, hidden_dim)
         self.linear3 = nn.Linear(hidden_dim, output_dim)
 
-        self.linear1.weight.data.uniform_(0, init_w)
-        self.linear2.weight.data.uniform_(0, init_w)
-        self.linear3.weight.data.uniform_(0, init_w)
+        self.linear1.weight.data.uniform_(-init_w, init_w)
+        self.linear2.weight.data.uniform_(-init_w, init_w)
+        self.linear3.weight.data.uniform_(-init_w, init_w)
 
     def forward(self, topology):
         topology.requires_grad = True
@@ -191,9 +191,9 @@ class TopologyNet(nn.Module):
         # x = nn.BatchNorm2d(topology)
         x = torch.relu(self.linear1(topology))
         x = torch.relu(self.linear2(x))
-        x = F.relu(self.linear3(x))
+        x = F.elu(self.linear3(x))
 
-        return x+0.01
+        return x+1.0
 
 
 # define flexible safety policy network (our policy)
@@ -235,15 +235,20 @@ class FlexiblePolicyNet(nn.Module):
         input = state
         input_dim = input.size(dim=1)
 
-        self.w_plus = torch.square(self.q) @ self.w_triangle
-        self.w_minus = -torch.square(self.q) @ self.w_triangle
-        # self.w_plus = self.q.clamp(min=0) @ self.w_triangle
-        # self.w_minus = -self.z.clamp(min=0) @ self.w_triangle
+        # self.q = self.q + Config.K   # ensure \sum{w_plus} \geq 0
+        with torch.no_grad():
+            q_constrain = 0.5 + 5.0 * torch.sigmoid(self.q)
+            z_constrain = 0.5 + 5.0 * torch.sigmoid(self.z)
 
-        # self.b.data = self.b.data.clamp(min=0)
-        # self.c.data = self.c.data.clamp(min=0)
-        self.b.data = self.b.data.clamp(min=0) / torch.norm(self.b.data, 1) * self.scale
-        self.c.data = self.c.data.clamp(min=0) / torch.norm(self.c.data, 1) * self.scale
+            # self.b.data = self.b.data.clamp(min=0)
+            # self.c.data = self.c.data.clamp(min=0)
+            self.b.data = self.b.data.clamp(min=0) / torch.norm(self.b.data, 1) * self.scale
+            self.c.data = self.c.data.clamp(min=0) / torch.norm(self.c.data, 1) * self.scale
+
+        # self.w_plus = torch.square(self.q) @ self.w_triangle
+        # self.w_minus = -torch.square(self.q) @ self.w_triangle
+        self.w_plus = q_constrain @ self.w_triangle
+        self.w_minus = -q_constrain @ self.w_triangle
 
         self.b_plus=torch.matmul(-self.b, self.b_triangle) - torch.tensor(self.env.vmax - 0.005)
         self.b_minus=torch.matmul(-self.b, self.b_triangle) + torch.tensor(self.env.vmin + 0.005)
@@ -337,8 +342,8 @@ if __name__ == "__main__":
 
     # # logger.success(y)
 
-    # for i in range(5):
-    #     torch.manual_seed(i)
-    #     topology_net = TopologyNet(topology_dim=55, output_dim=1, hidden_dim=50)
-    #     net = FlexiblePolicyNet(env=env,topology_net=topology_net, action_dim=env.action_dim, obs_dim=env.obs_dim, hidden_dim=100)
-    #     plot_net(net, topology)
+    for i in range(5):
+        torch.manual_seed(i)
+        topology_net = TopologyNet(topology_dim=55, output_dim=1, hidden_dim=50)
+        net = FlexiblePolicyNet(env=env,topology_net=topology_net, action_dim=env.action_dim, obs_dim=env.obs_dim, hidden_dim=100)
+        plot_net(net, topology)

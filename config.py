@@ -3,9 +3,9 @@
 class Config:
 
     # used in reward funtion
-    cost_g_a = -0       # weight of global action cost
+    cost_g_a = -0.1       # weight of global action cost
     cost_g_v = -50     # weight of global voltage error cost
-    cost_l_a = -5       # weight of local action cost
+    cost_l_a = -1       # weight of local action cost
     cost_l_v = -100     # weight of local voltage error cost
 
     cost_g_a_56bus = -1       # weight of global action cost
@@ -20,8 +20,8 @@ class Config:
     # dead-zone offset, default deadzone is 0.05, use this offset to reduce dead-zon6
     dz_offset = 0.02
     # tarning rate
-    policy_learning_rate = 2e-4
-    value_learning_rate = 1e-3
+    policy_learning_rate = 1e-3
+    value_learning_rate = 1e-2
     lr_discount = 0.5
     policy_milestones = [1000,2000,4000]       # change learning rate at specific steps
     value_milestones = [1500, 3000, 5000, 9000]
@@ -32,8 +32,8 @@ class Config:
     state_dim = 1           # voltage state
     topology_dim = 55       # topology matrix dimensions
     action_dim = 1
-    hidden_dim = 1024
-    hidden_dim_56bus = 128     #2048
+    hidden_dim_123bus = 1024
+    hidden_dim_56bus = 2048     #2048
     topology_hidden_dim = 256   # hidden neurons in topology nn module
     total_episodes = 1000
     total_steps = 60        # trajetory length each episode
@@ -44,5 +44,11 @@ class Config:
 
     # nn module parameter
     topology_net_init_w = 0.03      # the range of uniform initial weight, [0, topology_net_init_w]
+
+    # path to save the model and result
+    data_path = 'D:/Code/Python/Flexible_Voltage_Control/'
+
+    # exponential parameter of Lyapunov stability
+    K = 0.5
 
 

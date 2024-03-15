@@ -215,6 +215,7 @@ class VoltageCtrl_Env(gym.Env):
     def reset_topo(self, seed=1): #initial volateg conditions with topology change
         np.random.seed(seed)
         scenario = np.random.choice([0, 1])
+        #scenario = np.random.choice([0, 1, 3])
         # scenario = 3
         self.network.line.x_ohm_per_km = self.topology_init * np.random.uniform(0.5,1.5)
         self.topology = 1/self.network.line.x_ohm_per_km

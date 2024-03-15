@@ -2,6 +2,7 @@ from Environment import *
 from DDPG import *
 from NN_Module import *
 from config import Config
+import os
 
 import torch
 import matplotlib.pyplot as plt
@@ -12,7 +13,7 @@ from loguru import logger
 logger.remove()
 logger.add(sys.stderr, level='DEBUG')
 
-env_seed = 8        #10-h  5-h 0-l 1-h 2-l 3-l 4l 7h 8h 9l 6l
+env_seed = 10        #10-h  5-h 0-l 1-h 2-l 3-l 4l 7h 8h 9l 6l
 
 agent_num = 5
 agent_policy_net = []
@@ -35,6 +36,7 @@ def moving_average(a, n=3):
 def plot_policy(policy_net, topology):
     fig, axs = plt.subplots(1, 5, figsize=(15,3))
     title = ['Bus 18', 'Bus 21', 'Bus 30', 'Bus 45', 'Bus 53']
+    
     for i in range(5):
         axs[i].clear()
         # plot policy
@@ -57,10 +59,13 @@ def plot_policy(policy_net, topology):
             a_array[j] = -action
 
         a_array_s = moving_average(a_array, n=20)
-        axs[i].plot(12*s_array, 5*a_array_baseline, '-.', label = 'Linear')
-        axs[i].plot(12*s_array, a_array_s, label = 'Flexible-DDPG')
+        axs[i].plot(12*s_array, 8*a_array_baseline, '-.', label = 'Linear')
+        axs[i].plot(12*s_array, a_array_s, label = 'Flexible-MATD3')
         axs[i].set_title(title[i])
+        axs[0].set_ylabel('Q(MVar)')
+        axs[i].set_xlabel('Voltage(kV)')
         axs[i].legend(loc='lower left')
+        axs[i].grid(True)
 
 def plot_safe_net(net):
     fig, axs = plt.subplots(1, 5, figsize=(15,3))
@@ -86,9 +91,12 @@ def plot_safe_net(net):
         axs[i].plot(12*s_array, 2*a_array_baseline, '-.', label = 'Linear')
         axs[i].plot(12*s_array, a_array, label = 'Stable-DDPG')
         axs[i].legend(loc='lower left')
+        axs[i].grid(True)
 
 def plot_x_policy(policy_net, topology):
     fig, axs = plt.subplots()
+    axs.set_ylabel('Q(MVar)', fontsize=16)
+    axs.set_xlabel('Voltage(kV)', fontsize=16)
     for i in range(5):
         # plot policy
         N = 400
@@ -113,10 +121,15 @@ def plot_x_policy(policy_net, topology):
             a_array[j] = -action
 
         a_array_s = moving_average(a_array, n = 20)
-        axs.plot(12*s_array, 5*a_array_baseline, '-.', label = 'Linear')
-        axs.plot(12*s_array, a_array_s, label = 'Flexible-DDPG')
-        axs.legend(loc='lower left')
+        axs.plot(12*s_array, a_array_s, label = f'Topology {i}')
+        axs.legend(loc='lower left', framealpha=0.9, fontsize=12)
         plt.pause(0.1)
+
+    axs.grid(True)
+    #axs.axhline(y=0, color='black', linewidth=1)
+    #axs.axvline(x=12, color='black', linewidth=1)
+    #plt.title('Flexible-MATD3 with different topopolgy')
+    
 
 ### load nn model parameter from saved model 
 for i in range(agent_num):
@@ -132,7 +145,7 @@ for i in range(agent_num):
     #value_net_dict = torch.load(f'check_points/value_net/2023-06-19/Step_200_Seed_12_a{i}.pth')
     #policy_net_dict = torch.load(f'check_points/policy_net/2023-08-09/Step_250_Seed_23_a{i}.pth')
     #policy_net_dict = torch.load(f'check_points/policy_net/2023-08-15/Step_900_Seed_33_a{i}.pth')
-    policy_net_dict = torch.load(f'check_points/policy_net/2023-09-21/Step_900_Seed_10_a{i}.pth')
+    policy_net_dict = torch.load(os.path.join(Config.data_path,f'check_points/policy_net/2023-09-21/Step_900_Seed_10_a{i}.pth'))
 
     agent_policy_net[i].load_state_dict(policy_net_dict)
 
@@ -142,9 +155,9 @@ for i in range(agent_num):
 
     safe_agent_net[i].load_state_dict(policy_net_dict)
 
-plot_policy(agent_policy_net, topology)
+#plot_policy(agent_policy_net, topology)
 plot_x_policy(agent_policy_net, topology)
-plot_safe_net(safe_agent_net)
+#plot_safe_net(safe_agent_net)
 
 episode_reward = 0
 episode_control = 0
@@ -179,8 +192,8 @@ for t in range(100):
         break
 
     if done and done_record:
-        logger.info('stable at step {}', t)
-        logger.info('stable cost is {}', episode_control)
+        logger.info('Flexible-MATD3 stable at step {}', t)
+        logger.info('Flexible-MATD3 stable cost is {}', episode_control)
         done_record = False
 
     voltage.append(state)
@@ -232,8 +245,8 @@ for t in range(100):
         break
 
     if done and done_record:
-        logger.info('stable at step {}', t)
-        logger.info('stable cost is {}', episode_control)
+        logger.info('Linear stable at step {}', t)
+        logger.info('Linear stable cost is {}', episode_control)
         done_record = False
 
     voltage.append(state)
@@ -289,8 +302,8 @@ for t in range(100):
         break
 
     if done and done_record:
-        logger.info('stable at step {}', t)
-        logger.info('stable cost is {}', episode_control)
+        logger.info('Safe-DDPG stable at step {}', t)
+        logger.info('Safe-DDPG stable cost is {}', episode_control)
         done_record = False
 
     safe_voltage.append(state)
@@ -317,23 +330,30 @@ logger.info('objective of linear controller is {}', np.sum(safe_cost))
 
 fig, ax = plt.subplots()
 title = ['Bus 18', 'Bus 21', 'Bus 30', 'Bus 45', 'Bus 53']
-for i in range(agent_num):
-    ax.plot(q_RL[:,i], label = title[i])
-    ax.plot(safe_q[:,i], '-.', label = title[i])
-    ax.plot(q_baseline[:,i], '--')
-ax.legend(loc = 'upper right')
-plt.title('Controller Output')
+colors = ['b', 'r', 'c','m', 'y', 'r']
+for i in [0,1,3]:
+    ax.plot(q_RL[:,i], color = colors[i],label = f'{title[i]}(Flexible-MATD3)')
+    ax.plot(safe_q[:,i], '-.', color = colors[i], label = f'{title[i]}(Safe-DDPG)')
+    ax.plot(q_baseline[:,i], '--', color = colors[i], label = f'{title[i]}(Linear)')
+ax.set_ylabel('Q(MVar)', fontsize=16)
+ax.set_xlabel('Iteration Steps', fontsize=16)
+ax.legend(loc = 'lower right', framealpha = 0.9, fontsize=12)
+#plt.title('Controller Output')
+ax.grid()
 
 fig, ax = plt.subplots()
-ax.plot(cost_RL, label = 'RL')
+ax.plot(cost_RL, label = 'Flexible-MATD3')
 ax.plot(cost_baseline, label = 'Linear')
 ax.plot(safe_cost, label = 'SafeRL')
-ax.legend(loc = 'upper right')
-plt.title('Cost with Voltage and Q')
+ax.set_ylabel('Cost', fontsize=16)
+ax.set_xlabel('Iteration Steps', fontsize=16)
+ax.legend(loc = 'upper right', fontsize=12)
+#plt.title('Cost with Voltage and Q')
+ax.grid()
 
 #plt.show()
 
-index = [0, 1, 2, 3, 4] 
+index = [0, 1, 3] 
 labels = ['Bus 18 (Linear)', 'Bus 18 (Flexible-DDPG)', 'Bus 18 (safe-DDPG)',
           'Bus 21 (Linear)', 'Bus 21 (Flexible-DDPG)', 'Bus 21 (safe-DDPG)',
           'Bus 30 (Linear)', 'Bus 30 (Flexible-DDPG)', 'Bus 30 (safe-DDPG)',
@@ -350,7 +370,7 @@ for i in range(len(index)):
     ax.plot(12*voltage_baseline[:, index[i]], '-.', color = colors[i], label = labels[3*i])
     ax.plot(12*safe_voltage[:, index[i]], '--', color = colors[i], label = labels[3*i+2])
 
-ax.legend(loc = 'upper right')
+ax.legend(loc = 'upper right', fontsize=12, framealpha = 0.9)
 
 state,topology,senario = env.reset_topo(seed=env_seed)
 logger.debug(senario)
@@ -369,8 +389,8 @@ else:
 
 ax.set_xlim([0, 100])
 # ax.set_yticks([10, 11, 12, 13, 14])
-ax.set_ylabel('Bus voltage (kV)')
-ax.set_xlabel('Iteration Steps')
+ax.set_ylabel('Bus voltage (kV)', fontsize=16)
+ax.set_xlabel('Iteration Steps', fontsize=16)
 ax.grid()
 
 plt.show()

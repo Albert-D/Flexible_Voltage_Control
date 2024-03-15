@@ -37,16 +37,16 @@ logger.add(sys.stderr, level='DEBUG')
 
 ### create two new folder to save result
 today = date.today()
-if not os.path.exists(f'images/policy_img/{today}/'):
-    os.makedirs(f'images/policy_img/{today}/')
-if not os.path.exists(f'images/reward_img/{today}/'):
-    os.makedirs(f'images/reward_img/{today}/')
+if not os.path.exists(Config.data_path + f'images/policy_img/{today}/'):
+    os.makedirs(Config.data_path + f'images/policy_img/{today}/')
+if not os.path.exists(Config.data_path + f'images/reward_img/{today}/'):
+    os.makedirs(Config.data_path + f'images/reward_img/{today}/')
 
 ### define training algorithm 'DDPG' or 'TD3'
 algorithm = 'TD3'
 
 ### define which envrionment to use, '56bus' or '123bus'
-ENV = '56bus'
+ENV = '123bus'
 
 ### create trainning environment
 if ENV == '56bus':
@@ -69,14 +69,13 @@ seed += 1
 with open('seed.txt', 'w') as file:
     file.write(str(seed))
 
-save_config = os.path.join(f'images/reward_img/{today}/', f'config_{seed}.py')
+save_config = os.path.join(Config.data_path,f'images/reward_img/{today}/', f'config_{seed}.py')
 shutil.copy('config.py', save_config)
 logger.info(f'config file saved to {save_config}')
 
 num_agent = env.agentnum                # agent number is defined by environment
 obs_dim = Config.obs_dim
 action_dim = Config.action_dim
-hidden_dim = Config.hidden_dim
 topology_hidden_dim = Config.topology_hidden_dim
 num_episodes = Config.total_episodes
 num_steps = Config.total_steps          # trajetory length each episode
@@ -159,11 +158,18 @@ for i in range(num_agent):
         target_value_net = Q_Network(obs_dim=1, action_dim=action_dim,hidden_dim=256).to(device)
 
     # Initialize the actor netowrk
-    topology_net = TopologyNet(topology_dim=env.topology_dim, output_dim=1, hidden_dim=topology_hidden_dim)
-    policy_net = FlexiblePolicyNet(env=env, topology_net=topology_net, obs_dim=obs_dim, 
-                                   action_dim=action_dim, hidden_dim=Config.hidden_dim_56bus).to(device)
-    target_policy_net = FlexiblePolicyNet(env=env, topology_net=topology_net, obs_dim=obs_dim, 
-                                          action_dim=action_dim, hidden_dim=Config.hidden_dim_56bus).to(device)
+    if ENV == '56bus':
+        topology_net = TopologyNet(topology_dim=env.topology_dim, output_dim=1, hidden_dim=topology_hidden_dim)
+        policy_net = FlexiblePolicyNet(env=env, topology_net=topology_net, obs_dim=obs_dim, 
+                                    action_dim=action_dim, hidden_dim=Config.hidden_dim_56bus).to(device)
+        target_policy_net = FlexiblePolicyNet(env=env, topology_net=topology_net, obs_dim=obs_dim, 
+                                            action_dim=action_dim, hidden_dim=Config.hidden_dim_56bus).to(device)
+    if ENV == '123bus':
+        topology_net = TopologyNet(topology_dim=env.topology_dim, output_dim=1, hidden_dim=topology_hidden_dim)
+        policy_net = FlexiblePolicyNet(env=env, topology_net=topology_net, obs_dim=obs_dim, 
+                                    action_dim=action_dim, hidden_dim=Config.hidden_dim_123bus).to(device)
+        target_policy_net = FlexiblePolicyNet(env=env, topology_net=topology_net, obs_dim=obs_dim, 
+                                            action_dim=action_dim, hidden_dim=Config.hidden_dim_123bus).to(device)
 
     for target_param, param in zip(target_value_net.parameters(), value_net.parameters()):
         target_param.data.copy_(param.data)
@@ -210,8 +216,9 @@ for episode in range(num_episodes+1):
     last_action = np.zeros((num_agent,1))
     plot_policy(agent_list,torch.cuda.FloatTensor(topology).unsqueeze(0))
     if episode%50==0:
-        plt.savefig(f'images/policy_img/{today}/seed{seed}_episode_{episode}.png')
-        logger.info(f'save policy image to images/policy_img/{today}/seed{seed}_episode_{episode}.png')
+        fig_path = os.path.join(Config.data_path,f'images/policy_img/{today}/seed{seed}_episode_{episode}.png')
+        plt.savefig(fig_path)
+        logger.info(f'save policy image to {fig_path}')
 
     for step in range(num_steps):
         if keyboard.is_pressed('end'):
@@ -284,15 +291,15 @@ for episode in range(num_episodes+1):
     if keyboard.is_pressed('end'):
         logger.warning("Training process terminated by user!")
         today = date.today()
-        value_pth = f'check_points/value_net/{today}/'
-        policy_pth = f'check_points/policy_net/{today}/'
+        value_pth = Config.data_path + f'check_points/value_net/{today}/'
+        policy_pth = Config.data_path + f'check_points/policy_net/{today}/'
         for i in range(num_agent):
             torch.save(agent_list[i].value_net.state_dict(), value_pth + f'Step_{episode}_Seed_{seed}_a{i}.pth')
             torch.save(agent_list[i].policy_net.state_dict(), policy_pth + f'Step_{episode}_Seed_{seed}_a{i}.pth')
             logger.info('value net parameters had saved to {}', value_pth + f'Step_{episode}_Seed_{seed}_a{i}.pth')
             logger.info('policy_net parameters had saved to {}', policy_pth + f'Step_{episode}_Seed_{seed}_a{i}.pth')
 
-        plt.savefig(f'images/policy_img/{today}/seed{seed}_episode_{episode}.png')
+        plt.savefig(Config.data_path + f'images/policy_img/{today}/seed{seed}_episode_{episode}.png')
         logger.info(f'save policy image to images/policy_img/{today}/seed{seed}_episode_{episode}.png')
         break
 
@@ -308,8 +315,8 @@ for episode in range(num_episodes+1):
     ### save nn model parameters
     if(episode%50 == 0):
         today = date.today()
-        value_pth = f'check_points/value_net/{today}/'
-        policy_pth = f'check_points/policy_net/{today}/'
+        value_pth = Config.data_path + f'check_points/value_net/{today}/'
+        policy_pth = Config.data_path + f'check_points/policy_net/{today}/'
         if not os.path.exists(value_pth): 
             os.makedirs(value_pth)
         if not os.path.exists(policy_pth):
@@ -328,5 +335,5 @@ plt.plot(range(len(avg_reward_list)), avg_reward_list)
 plt.xlabel('Episode')
 plt.ylabel('Reward')
 plt.grid(True)
-plt.savefig(f'images/reward_img/{today}/avg_reward_{seed}.png')
+plt.savefig(Config.data_path + f'images/reward_img/{today}/avg_reward_{seed}.png')
 plt.show()
