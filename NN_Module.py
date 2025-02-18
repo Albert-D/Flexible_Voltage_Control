@@ -237,8 +237,10 @@ class FlexiblePolicyNet(nn.Module):
 
         # self.q = self.q + Config.K   # ensure \sum{w_plus} \geq 0
         with torch.no_grad():
-            q_constrain = 0.5 + 5.0 * torch.sigmoid(self.q)
-            z_constrain = 0.5 + 5.0 * torch.sigmoid(self.z)
+            # q_constrain = 0.5 + 5.0 * torch.sigmoid(self.q)
+            # z_constrain = 0.5 + 5.0 * torch.sigmoid(self.z)
+            q_constrain = self.q.clamp(min=0.1, max=1000)
+            z_constrain = self.z.clamp(min=0.1, max=1000)
 
             # self.b.data = self.b.data.clamp(min=0)
             # self.c.data = self.c.data.clamp(min=0)

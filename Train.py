@@ -46,7 +46,7 @@ if not os.path.exists(Config.data_path + f'images/reward_img/{today}/'):
 algorithm = 'TD3'
 
 ### define which envrionment to use, '56bus' or '123bus'
-ENV = '123bus'
+ENV = '56bus'
 
 ### create trainning environment
 if ENV == '56bus':
