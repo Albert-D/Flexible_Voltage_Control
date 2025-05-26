@@ -82,33 +82,32 @@ class VoltageCtrl_Env(gym.Env):
         return self.state, reward, done
 
     
-    def step_Preward(self, action, p_action): 
+    def step_load(self, action, load_p, load_q, pv_p): 
         
         done = False 
         
-        reward = float(-50*LA.norm(p_action) -100*LA.norm(np.clip(self.state-self.v0, 0, np.inf))
-                       - 100*LA.norm(np.clip(self.v0-self.state, 0, np.inf)))
+        reward = float(-1*LA.norm(action) -100*LA.norm(np.clip(self.state-self.v0, 0, np.inf))
+                       - 100*LA.norm(np.clip(self.v0-self.state, 0, np.inf)))          
         
-        # local reward
-        agent_num = len(self.injection_bus)
-        reward_sep = np.zeros(agent_num, )
-        
-        for i in range(agent_num):
-            reward_sep[i] = float(-50*LA.norm(p_action[i]) -100*LA.norm(np.clip(self.state[i]-self.v0, 0, np.inf))
-                           - 100*LA.norm(np.clip(self.v0-self.state[i], 0, np.inf)))              
-        
+        load_bus_list = [5, 8, 10, 12, 14, 19, 22, 33, 37, 38, 41]
+        for i in range(len(load_bus_list)):
+            self.network.load.at[load_bus_list[i], 'p_mw'] = load_p * 0.08
+            self.network.load.at[load_bus_list[i], 'q_mvar'] = load_q * 0.08
         # state-transition dynamics
         for i in range(len(self.injection_bus)):
+            self.network.sgen.at[i+1, 'p_mw'] = pv_p * 0.35
             self.network.sgen.at[i+1, 'q_mvar'] = action[i] 
 
         pp.runpp(self.network, algorithm='bfsw', init = 'dc')
         
         self.state = self.network.res_bus.iloc[self.injection_bus].vm_pu.to_numpy()
+        state_all = self.network.res_bus.vm_pu.to_numpy()
+        topology = self.network.line.x_ohm_per_km
         
         if(np.min(self.state) > 0.95 and np.max(self.state)< 1.05):
             done = True
         
-        return self.state, reward, reward_sep, done
+        return self.state, topology, reward, done
 
     #state-transition with topology or impedance change
     def step_uncertain(self, action):
@@ -144,6 +143,8 @@ class VoltageCtrl_Env(gym.Env):
     
     def topology_change(self, seed=0):
         np.random.seed(seed)
+        self.network.line.x_ohm_per_km = self.topology_init * np.random.uniform(0.5,1.5)
+        self.topology = 1/self.network.line.x_ohm_per_km
 
         random_change_lsit = np.random.choice([True,False], size=len(self.network.switch))
         logger.debug(random_change_lsit)
@@ -151,7 +152,21 @@ class VoltageCtrl_Env(gym.Env):
         for i in range(len(random_change_lsit)):
             self.network.switch.at[i, 'closed'] = random_change_lsit[i]
             if not random_change_lsit[i]:
-                self.topology[self.network.switch.element[i]] = 0.0
+                self.topology[self.network.switch.element[i]] = np.random.uniform(-0.01,0.01)
+
+        pp.runpp(self.network, algorithm='bfsw')
+        #logger.debug(self.topology)
+
+        return self.topology
+    
+    def topology_reset(self):
+        self.network.line.x_ohm_per_km = self.topology_init
+        self.topology = 1/self.network.line.x_ohm_per_km
+
+        pp.runpp(self.network, algorithm='bfsw')
+        #logger.debug(self.topology)
+
+        return self.topology
 
     
     def reset(self, seed=1): #sample different initial volateg conditions during training
@@ -161,7 +176,7 @@ class VoltageCtrl_Env(gym.Env):
 
         self.network.line.x_ohm_per_km = self.topology_init * np.random.uniform(0.7,1.3)
         #self.network.line.x_ohm_per_km = self.topology_init
-        self.topology = self.network.line.x_ohm_per_km
+        self.topology = 1/self.network.line.x_ohm_per_km
         if(scenario == 0):#low voltage
             # logger.info('this episode is start at low voltage!')
             self.network.sgen['p_mw'] = 0.0
@@ -514,16 +529,16 @@ def create_123bus():
 
 if __name__ == "__main__":
 
-    # injection_bus = np.array([18, 21, 30, 45, 53])-1
-    # pp_net = create_56bus()
-    # env = VoltageCtrl_Env(pp_net, injection_bus)
+    injection_bus = np.array([18, 21, 30, 45, 53])-1
+    pp_net = create_56bus()
+    env = VoltageCtrl_Env(pp_net, injection_bus)
 
-    injection_bus = np.array([9, 10, 15, 19, 32, 35, 47, 58, 65, 74, 82, 91, 103, 60]) #11, 36, 75,/ 1,5,9
-    pp_net = create_123bus()
-    env = Env_123bus(pp_net, injection_bus)
+    # injection_bus = np.array([9, 10, 15, 19, 32, 35, 47, 58, 65, 74, 82, 91, 103, 60]) #11, 36, 75,/ 1,5,9
+    # pp_net = create_123bus()
+    # env = Env_123bus(pp_net, injection_bus)
 
     for i in range(5):
-        state, topology, scenario = env.reset_topo(i+5)
+        state, topology, scenario = env.reset(i+5)
         topology = torch.cuda.FloatTensor(topology).unsqueeze(0)
         # topology = topology.expand(64,55)
         topology = F.normalize(topology)
@@ -532,7 +547,9 @@ if __name__ == "__main__":
     # print(env.network.line.x_ohm_per_km)
     print(pp_net.sgen)
 
-    simple_plotly(env.network, figsize=2)
-    # pf_res_plotly(pp_net)
+    #simple_plotly(env.network, figsize=2)
+    pf_res_plotly(pp_net)
+
+
 
  

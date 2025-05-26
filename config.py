@@ -49,6 +49,6 @@ class Config:
     data_path = 'D:/Code/Python/Flexible_Voltage_Control/'
 
     # exponential parameter of Lyapunov stability
-    K = 0.5
+    K = 0.01
 
 
