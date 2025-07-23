@@ -571,8 +571,8 @@ for i in range(agent_num):
 
     safe_agent_net[i].load_state_dict(policy_net_dict)
 
-enhanced_policy_plot(agent_policy_net, topology)
-x_policy_plotly(agent_policy_net)
+#enhanced_policy_plot(agent_policy_net, topology)
+#x_policy_plotly(agent_policy_net)
 #safe_net_plotly(safe_agent_net)
 
 episode_reward = 0
@@ -773,14 +773,14 @@ selected_buses = [0, 2, 4]
 
 # Method colors (consistent across all plots) - Nature-friendly option 1
 method_colors = {
-    'RLC-FT': '#0072B2',    # Vibrant blue
-    'Safe-DDPG': '#D55E00', # Brick red (better for colorblind visibility)
+    'RLC-FT': "#0072B2",    # Vibrant blue
+    'Safe-DDPG': "#9D9204", # Brick red (better for colorblind visibility)
     'Linear': '#555555'     # Darker gray (better contrast)
 }
 
 # Method line styles
 method_styles = {
-    'RLC-FT': dict(dash='solid', width=3.5),
+    'RLC-FT': dict(dash='solid', width=5),
     'Safe-DDPG': dict(dash='dashdot', width=3),
     'Linear': dict(dash='dash', width=2.5)
 }

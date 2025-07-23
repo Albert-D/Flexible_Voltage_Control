@@ -58,6 +58,10 @@ class VoltageCtrl_Env(gym.Env):
         self.topology_init = pp_net.line.x_ohm_per_km
         self.topology = self.topology_init
 
+        # Save original injection buses and agent number
+        self.original_injection_bus = np.copy(injection_bus)
+        self.original_agentnum = len(injection_bus)
+
     
     #this function is used to test the policy
     def step(self, action):
@@ -94,13 +98,18 @@ class VoltageCtrl_Env(gym.Env):
             self.network.load.at[load_bus_list[i], 'p_mw'] = load_p * 0.08
             self.network.load.at[load_bus_list[i], 'q_mvar'] = load_q * 0.08
         # state-transition dynamics
-        for i in range(len(self.injection_bus)):
-            self.network.sgen.at[i+1, 'p_mw'] = pv_p * 0.35
-            self.network.sgen.at[i+1, 'q_mvar'] = action[i] 
+        for i in range(len(self.injection_bus)):    # only control the first 5 PVs
+            if i < 5:
+                self.network.sgen.at[i+1, 'p_mw'] = pv_p * 0.35
+                self.network.sgen.at[i+1, 'q_mvar'] = action[i]
+            else:
+                self.network.sgen.at[i+1, 'p_mw'] = pv_p * 0.35
+                self.network.sgen.at[i+1, 'q_mvar'] = 0
 
         pp.runpp(self.network, algorithm='bfsw', init = 'dc')
         
-        self.state = self.network.res_bus.iloc[self.injection_bus].vm_pu.to_numpy()
+        # Get state only for original buses
+        self.state = self.network.res_bus.iloc[self.original_injection_bus].vm_pu.to_numpy()
         state_all = self.network.res_bus.vm_pu.to_numpy()
         topology = self.network.line.x_ohm_per_km
         
@@ -167,6 +176,182 @@ class VoltageCtrl_Env(gym.Env):
         #logger.debug(self.topology)
 
         return self.topology
+    
+    def pv_node_change(self, action='disconnect', pv_index=None, bus_id=None, p_mw=None, seed=None):
+        """
+        Function to dynamically change PV generation nodes
+        
+        Parameters:
+        -----------
+        action : str
+            'disconnect' - disconnect a PV node
+            'add' - add a new PV node
+            'random' - randomly disconnect or connect PV nodes
+        pv_index : int, optional
+            Index of PV node to disconnect (index in sgen table)
+        bus_id : int, optional  
+            Bus ID to connect new PV node
+        p_mw : float, optional
+            Active power output (MW) for new PV node
+        seed : int, optional
+            Random seed
+        
+        Returns:
+        --------
+        dict : Dictionary containing operation results
+        """
+        if seed is not None:
+            np.random.seed(seed)
+        
+        result = {'action': action, 'success': False, 'details': ''}
+        
+        if action == 'disconnect':
+            # Get currently active PV nodes
+            active_pv_indices = self.network.sgen[self.network.sgen.in_service == True].index.tolist()
+            
+            if len(active_pv_indices) == 0:
+                result['details'] = 'No active PV nodes to disconnect'
+                return result
+            
+            # If no specific PV node specified, randomly select one
+            if pv_index is None:
+                pv_index = np.random.choice(active_pv_indices)
+            
+            # Check if index is valid
+            if pv_index not in active_pv_indices:
+                result['details'] = f'PV index {pv_index} is not active or does not exist'
+                return result
+            
+            # Disconnect PV node
+            self.network.sgen.at[pv_index, 'in_service'] = False
+            
+            # Update injection_bus array
+            disconnected_bus = self.network.sgen.at[pv_index, 'bus']
+            if disconnected_bus in self.injection_bus:
+                # Convert to list, remove bus, then convert back to numpy array
+                injection_bus_list = self.injection_bus.tolist() if isinstance(self.injection_bus, np.ndarray) else list(self.injection_bus)
+                injection_bus_list = [bus for bus in injection_bus_list if bus != disconnected_bus]
+                self.injection_bus = np.array(injection_bus_list)
+                self.agentnum = len(self.injection_bus)
+            
+            result['success'] = True
+            result['details'] = f'Disconnected PV at index {pv_index}, bus {disconnected_bus}'
+            
+        elif action == 'add':
+            # Check required parameters
+            if bus_id is None:
+                # Randomly select a bus without PV
+                existing_pv_buses = self.network.sgen[self.network.sgen.in_service == True]['bus'].tolist()
+                all_buses = self.network.bus.index.tolist()
+                available_buses = [bus for bus in all_buses if bus not in existing_pv_buses and bus != 0]  # Exclude slack bus
+                
+                if len(available_buses) == 0:
+                    result['details'] = 'No available buses for new PV'
+                    return result
+                    
+                bus_id = np.random.choice(available_buses)
+            
+            # Set default power
+            if p_mw is None:
+                p_mw = np.random.uniform(0.5, 5.0)  # Default 0.5-5MW
+
+            # Convert numpy array to scalar if needed
+            if isinstance(p_mw, np.ndarray):
+                p_mw = float(p_mw.item()) if p_mw.size == 1 else float(p_mw[0])
+            else:
+                p_mw = float(p_mw)
+            
+            # Create new PV node
+            new_index = self.network.sgen.index.max() + 1 if len(self.network.sgen) > 0 else 0
+            
+            pp.create_sgen(self.network, 
+                        bus=bus_id,
+                        p_mw=p_mw,
+                        q_mvar=0,  # Initial reactive power is 0
+                        name=f'PV_{new_index}',
+                        index=new_index,
+                        in_service=True)
+            
+            # Update injection_bus array
+            if bus_id not in self.injection_bus:
+                # Convert to list, add bus, sort, then convert back to numpy array
+                injection_bus_list = self.injection_bus.tolist() if isinstance(self.injection_bus, np.ndarray) else list(self.injection_bus)
+                injection_bus_list.append(bus_id)
+                injection_bus_list.sort()
+                self.injection_bus = np.array(injection_bus_list)
+                self.agentnum = len(self.injection_bus)
+            
+            result['success'] = True
+            result['details'] = f'Added PV at bus {bus_id} with {p_mw:.2f} MW, index {new_index}'
+            
+        elif action == 'random':
+            # Randomly decide to disconnect or add
+            random_action = np.random.choice(['disconnect', 'add'])
+            return self.pv_node_change(action=random_action, seed=seed)
+        
+        else:
+            result['details'] = f'Unknown action: {action}'
+            return result
+        
+        # Run power flow to update system state
+        try:
+            pp.runpp(self.network, algorithm='bfsw', init='dc')
+            self.state = self.network.res_bus.iloc[self.injection_bus].vm_pu.to_numpy()
+        except:
+            result['success'] = False
+            result['details'] += ' - Power flow failed'
+        
+        return result
+
+
+    def pv_node_reset(self):
+        """
+        Reset all PV nodes to initial state
+        """
+        # Remove PV nodes added later
+        original_indices = list(range(len(self.gen0_p)))
+        current_indices = self.network.sgen.index.tolist()
+        indices_to_drop = [idx for idx in current_indices if idx >= len(self.gen0_p)]
+        
+        if indices_to_drop:
+            self.network.sgen = self.network.sgen.drop(indices_to_drop)
+            # Reset index to ensure consistency
+            self.network.sgen.reset_index(drop=True, inplace=True)
+        
+        # Restore all original PV nodes
+        for i in range(len(self.gen0_p)):
+            if i < len(self.network.sgen):
+                self.network.sgen.at[i, 'in_service'] = True
+                self.network.sgen.at[i, 'p_mw'] = self.gen0_p[i]
+                self.network.sgen.at[i, 'q_mvar'] = self.gen0_q[i]
+        
+        # Reset injection_bus to original
+        self.injection_bus = np.copy(self.original_injection_bus)
+        self.agentnum = self.original_agentnum
+        
+        # Don't run power flow here to avoid conflicts
+        self.state = self.network.res_bus.iloc[self.injection_bus].vm_pu.to_numpy()
+        
+        return {'success': True, 'details': 'PV nodes reset to initial state'}
+
+
+    def get_pv_status(self):
+        """
+        Get current status of all PV nodes
+        """
+        pv_status = []
+        for idx, row in self.network.sgen.iterrows():
+            status = {
+                'index': idx,
+                'bus': row['bus'],
+                'name': row.get('name', f'PV_{idx}'),
+                'p_mw': row['p_mw'],
+                'q_mvar': row['q_mvar'],
+                'in_service': row['in_service']
+            }
+            pv_status.append(status)
+        
+        return pv_status
 
     
     def reset(self, seed=1): #sample different initial volateg conditions during training
@@ -291,7 +476,7 @@ class VoltageCtrl_Env(gym.Env):
         return self.state, self.topology, scenario
     
     def reset0(self, seed=1): #reset voltage to nominal value
-        
+
         self.network.load['p_mw'] = 0*self.load0_p
         self.network.load['q_mvar'] = 0*self.load0_q
 
@@ -529,16 +714,16 @@ def create_123bus():
 
 if __name__ == "__main__":
 
-    injection_bus = np.array([18, 21, 30, 45, 53])-1
-    pp_net = create_56bus()
-    env = VoltageCtrl_Env(pp_net, injection_bus)
+    # injection_bus = np.array([18, 21, 30, 45, 53])-1
+    # pp_net = create_56bus()
+    # env = VoltageCtrl_Env(pp_net, injection_bus)
 
-    # injection_bus = np.array([9, 10, 15, 19, 32, 35, 47, 58, 65, 74, 82, 91, 103, 60]) #11, 36, 75,/ 1,5,9
-    # pp_net = create_123bus()
-    # env = Env_123bus(pp_net, injection_bus)
+    injection_bus = np.array([9, 10, 15, 19, 32, 35, 47, 58, 65, 74, 82, 91, 103, 60]) #11, 36, 75,/ 1,5,9
+    pp_net = create_123bus()
+    env = Env_123bus(pp_net, injection_bus)
 
     for i in range(5):
-        state, topology, scenario = env.reset(i+5)
+        state, topology, scenario = env.reset_topo(i+5)
         topology = torch.cuda.FloatTensor(topology).unsqueeze(0)
         # topology = topology.expand(64,55)
         topology = F.normalize(topology)
@@ -547,8 +732,8 @@ if __name__ == "__main__":
     # print(env.network.line.x_ohm_per_km)
     print(pp_net.sgen)
 
-    #simple_plotly(env.network, figsize=2)
-    pf_res_plotly(pp_net)
+    simple_plotly(env.network, figsize=2)
+    #pf_res_plotly(pp_net)
 
 
 
