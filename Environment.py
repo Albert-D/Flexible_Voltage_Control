@@ -68,7 +68,7 @@ class VoltageCtrl_Env(gym.Env):
         
         done = False 
         
-        # $-5*|u|^2 -100 * |max(v-v_max,0)|^2 -100 * |max(v_min-v,0)|^2$
+        # $-5*|u|^2 -100 * |max(v-v_0,0)|^2 -100 * |max(v_0-v,0)|^2$
         reward = float(-1*LA.norm(action) -100*LA.norm(np.clip(self.state-self.v0, 0, np.inf))
                        - 100*LA.norm(np.clip(self.v0-self.state, 0, np.inf)))
         
@@ -517,8 +517,8 @@ class Env_123bus(gym.Env):
         done = False 
         
         # $-5*|u|^2 -100 * |max(v-v_max,0)|^2 -100 * |max(v_min-v,0)|^2$
-        reward = float(-50*LA.norm(action) -100*LA.norm(np.clip(self.state-self.vmax, 0, np.inf))
-                       - 100*LA.norm(np.clip(self.vmin-self.state, 0, np.inf)))
+        reward = float(-0.1*LA.norm(action) -100*LA.norm(np.clip(self.state-self.v0, 0, np.inf))
+                       - 100*LA.norm(np.clip(self.v0-self.state, 0, np.inf)))
         
         # state-transition dynamics
         for i in range(self.agentnum):
@@ -547,14 +547,14 @@ class Env_123bus(gym.Env):
 
         pp.runpp(self.network, algorithm='bfsw', init = 'dc')
 
-        reward = float(cost_w_a * LA.norm(action)**2 + cost_w_v * LA.norm(np.clip(self.state-(self.v0), 0, np.inf)**0.5)
-            + cost_w_v * LA.norm(np.clip((self.v0)-self.state, 0, np.inf))**0.5)
+        reward = float(cost_w_a * LA.norm(action)**2 + cost_w_v * LA.norm(np.clip(self.state-(self.v0), 0, np.inf))
+            + cost_w_v * LA.norm(np.clip((self.v0)-self.state, 0, np.inf)))
         
         agent_num = len(self.injection_bus)
         reward_sep = np.zeros(agent_num, )
         for i in range(agent_num):
-            reward_sep[i] = float(cost_l_a*LA.norm(action[i])**2 + cost_l_v * LA.norm(np.clip(self.state[i]-(self.v0), 0, np.inf)**0.5)
-                           + cost_l_v * LA.norm(np.clip((self.v0)-self.state[i], 0, np.inf))**0.5)
+            reward_sep[i] = float(cost_l_a*LA.norm(action[i])**2 + cost_l_v * LA.norm(np.clip(self.state[i]-(self.v0), 0, np.inf))
+                           + cost_l_v * LA.norm(np.clip((self.v0)-self.state[i], 0, np.inf)))
         
         self.state = self.network.res_bus.iloc[self.injection_bus].vm_pu.to_numpy()
         state_all = self.network.res_bus.vm_pu.to_numpy()

@@ -63,7 +63,7 @@ plt.gca().set_facecolor('#f8f9fa')
 logger.remove()
 logger.add(sys.stderr, level='DEBUG')
 
-env_seed = 10        #10-h  5-h 0-l 1-h 2-l 3-l 4l 7h 8h 9l 6l
+env_seed = 56        #10-h  5-h 0-l 1-h 2-l 3-l 4l 7h 8h 9l 6l
 
 agent_num = 5
 agent_policy_net = []
@@ -1280,15 +1280,6 @@ fig.update_layout(
     )
 )
 
-# Add table reference annotation
-# fig.add_annotation(
-#     text="*For detailed performance metrics, see Table II",
-#     xref="paper", yref="paper",
-#     x=0.5, y=-0.08,
-#     showarrow=False,
-#     font=dict(size=12, color="gray"),
-#     align="center"
-# )
 
 # Configure export settings for better PDF quality
 pio.kaleido.scope.mathjax = None

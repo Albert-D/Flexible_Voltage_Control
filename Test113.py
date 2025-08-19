@@ -7,12 +7,14 @@ import torch
 import matplotlib.pyplot as plt
 
 from loguru import logger
+import os
+import sys
 
 ### a simple logger
 logger.remove()
 logger.add(sys.stderr, level='DEBUG')
 
-env_seed = 8        #10-h  5-h 0-l 1-h 2-l 3-l 4l 7h 8h 9l
+env_seed = 10        #10-h  5-h 0-l 1-h 2-l 3-l 4l 7h 8h 9l
 
 agent_policy_net = []
 safe_agent_net = []
@@ -115,7 +117,7 @@ def plot_x_policy(policy_net, topology):
 ### load nn model parameter from saved model 
 for i in range(agent_num):
     topology_net = TopologyNet(topology_dim=env.topology_dim, output_dim=1, hidden_dim=Config.topology_hidden_dim)
-    policy_net = FlexiblePolicyNet(env=env, topology_net=topology_net, obs_dim=1, action_dim=1, hidden_dim=Config.hidden_dim).to(device)
+    policy_net = FlexiblePolicyNet(env=env, topology_net=topology_net, obs_dim=1, action_dim=1, hidden_dim=Config.hidden_dim_123bus).to(device)
     agent_policy_net.append(policy_net)
 
 for i in range(agent_num):
@@ -124,7 +126,8 @@ for i in range(agent_num):
 
 for i in range(agent_num):
     #value_net_dict = torch.load(f'check_points/value_net/2023-06-19/Step_200_Seed_12_a{i}.pth')
-    policy_net_dict = torch.load(f'check_points/policy_net/2023-09-12/Step_700_Seed_18_a{i}.pth')
+    # policy_net_dict = torch.load(f'check_points/policy_net/2023-09-12/Step_700_Seed_18_a{i}.pth')
+    policy_net_dict = torch.load(os.path.join(Config.data_path,f'check_points/policy_net/2023-09-12/Step_700_Seed_18_a{i}.pth'))
 
     agent_policy_net[i].load_state_dict(policy_net_dict)
 
@@ -134,9 +137,9 @@ for i in range(agent_num):
 
     safe_agent_net[i].load_state_dict(policy_net_dict)
 
-plot_policy(agent_policy_net, topology)
+# plot_policy(agent_policy_net, topology)
 plot_x_policy(agent_policy_net, topology)
-plot_safe_net(safe_agent_net)
+# plot_safe_net(safe_agent_net)
 
 ### test our policy net
 
@@ -325,7 +328,7 @@ plt.title('Controller Output')
 fig, ax = plt.subplots()
 ax.plot(cost_RL, label = 'RL')
 ax.plot(cost_baseline, label = 'Linear')
-# ax.plot(safe_cost, label = 'SafeRL')
+ax.plot(safe_cost, label = 'SafeRL')
 ax.legend(loc = 'upper right')
 plt.title('Cost with Voltage and Q')
 

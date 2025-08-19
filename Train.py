@@ -4,6 +4,7 @@ from TD3 import *
 from NN_Module import *
 from Utils import ReplayBuffer
 from config import Config
+from dashboard import PlotStore, start_dashboard
 import sys
 from loguru import logger
 import os
@@ -46,7 +47,7 @@ if not os.path.exists(Config.data_path + f'images/reward_img/{today}/'):
 algorithm = 'TD3'
 
 ### define which envrionment to use, '56bus' or '123bus'
-ENV = '56bus'
+ENV = '123bus'
 
 ### create trainning environment
 if ENV == '56bus':
@@ -78,8 +79,8 @@ obs_dim = Config.obs_dim
 action_dim = Config.action_dim
 topology_hidden_dim = Config.topology_hidden_dim
 num_episodes = Config.total_episodes
-num_steps = Config.total_steps          # trajetory length each episode
-batch_size = Config.batch_size
+num_steps = Config.total_steps_123bus          # trajetory length each episode
+batch_size = Config.batch_size_123bus
 plot = False                            # if/not plot trained policy every # episodes
 if ENV == '56bus':
     maxaction = Config.max_action_56bus
@@ -94,53 +95,126 @@ Create Agent list and replay buffer
 """
 torch.manual_seed(seed)
 
-#be careful that this figure is defined galbal but use in function below
+# be careful that this figure is defined galbal but use in function below
 if ENV == '56bus':
-    fig, axs = plt.subplots(1, 5, figsize=(15,3))
+    # fig, axs = plt.subplots(1, 5, figsize=(15,3))
     title = ['Bus 18', 'Bus 21', 'Bus 30', 'Bus 45', 'Bus 53']
 elif ENV == '123bus':
-    fig, axs = plt.subplots(2, 7, figsize=(15,6))
+    # fig, axs = plt.subplots(2, 7, figsize=(15,6))
     title = ['Bus 9', 'Bus 10', 'Bus 15', 'Bus19', 'Bus 32', 'Bus 35', 'Bus 47', 
                 'Bus 58', 'Bus 65', 'Bus 74', 'Bus 72', 'Bus 91', 'Bus 103', 'Bus 60']
+    
 
-def plot_policy(agent_list, topology):
-    plt.cla()
-    for i in range(num_agent):
-        if ENV == '123bus':
-            axs[i//7][i%7].clear()
-        elif ENV == '56bus':
-            axs[i].clear()
-        # plot policy
-        N = 40
-        s_array = np.zeros(N,)
+# def plot_policy(agent_list, topology):
+#     plt.cla()
+#     for i in range(num_agent):
+#         if ENV == '123bus':
+#             axs[i//7][i%7].clear()
+#         elif ENV == '56bus':
+#             axs[i].clear()
+#         # plot policy
+#         N = 40
+#         s_array = np.zeros(N,)
         
-        a_array_baseline = np.zeros(N,)
-        a_array = np.zeros(N,)
+#         a_array_baseline = np.zeros(N,)
+#         a_array = np.zeros(N,)
         
-        for j in range(N):
-            state = torch.tensor([[0.80+0.01*j]])
-            s_array[j] = state
+#         for j in range(N):
+#             v = 0.80+0.01*j
+#             s_array[j] = v
 
-            action_baseline = (np.maximum(state.cpu()-1.05, 0)-np.maximum(0.95-state.cpu(), 0)).reshape((1,))
-        
-            action = agent_list[i].policy_net(state, topology)
-            action = action.detach().cpu().numpy()[0]
+#             action_baseline = (np.maximum(v-1.05, 0)-np.maximum(0.95-v, 0)).reshape((1,))
+
+#             state = torch.cuda.FloatTensor(s_array[j].reshape(1,)).unsqueeze(0)
+#             action = agent_list[i].policy_net(state, topology).detach()
+#             action = float(action.view(-1)[0].cpu())
             
-            a_array_baseline[j] = -action_baseline[0]
-            a_array[j] = -action
+#             a_array_baseline[j] = -action_baseline[0]
+#             a_array[j] = -action
 
-        if ENV == '123bus':
-            axs[i//7][i%7].plot(12*s_array, 10*a_array_baseline, '-.', label = 'Linear')
-            axs[i//7][i%7].plot(12*s_array, a_array, label = 'Flexible-DDPG')
-            axs[i//7][i%7].set_title(title[i])
-            axs[i//7][i%7].legend(loc='lower left')
-        elif ENV == '56bus':
-            axs[i].plot(12*s_array, 5*a_array_baseline, '-.', label = 'Linear')
-            axs[i].plot(12*s_array, a_array, label = 'Flexible-DDPG')
-            axs[i].set_title(title[i])
-            axs[i].legend(loc='lower left')
+#         if ENV == '123bus':
+#             axs[i//7][i%7].plot(12*s_array, 10*a_array_baseline, '-.', label = 'Linear')
+#             axs[i//7][i%7].plot(12*s_array, a_array, label = 'Flexible-DDPG')
+#             axs[i//7][i%7].set_title(title[i])
+#             axs[i//7][i%7].legend(loc='lower left')
+#         elif ENV == '56bus':
+#             axs[i].plot(12*s_array, 5*a_array_baseline, '-.', label = 'Linear')
+#             axs[i].plot(12*s_array, a_array, label = 'Flexible-DDPG')
+#             axs[i].set_title(title[i])
+#             axs[i].legend(loc='lower left')
 
-    plt.pause(0.1)
+#     plt.pause(0.1)
+
+## Function to compute policy curves for each agent
+def compute_policy_curves(agent_list, topology, ENV, num_agent, N=40):
+    """
+    Compute the policy curves for each agent based on the current policy network.
+    """
+    try:
+        s_array = np.linspace(0.80, 0.80 + 0.01 * (N - 1), N, dtype=np.float32)
+        
+        over = np.maximum(s_array - 1.05, 0.0)
+        under = np.maximum(0.95 - s_array, 0.0)
+        a_baseline = -(over - under)
+        x = 12.0 * s_array
+
+        y_lin_list, y_RL_list = [], []
+
+        target_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        for i in range(num_agent):
+            if ENV == '123bus':
+                y_lin = 10.0 * a_baseline
+            else:
+                y_lin = 5.0 * a_baseline
+            
+            try:
+                policy_net = agent_list[i].policy_net
+                was_training = policy_net.training
+                
+                with torch.no_grad():
+                    policy_net.eval()
+                    
+                    # ✅ 批处理：一次性处理所有状态
+                    states = torch.from_numpy(s_array).to(
+                        device=target_device, 
+                        dtype=torch.float32
+                    ).view(N, 1)
+                    
+                    # 处理topology维度
+                    if torch.is_tensor(topology):
+                        topo_t = topology.to(device=target_device, dtype=torch.float32)
+                    else:
+                        topo_t = torch.as_tensor(topology, device=target_device, dtype=torch.float32)
+                    
+                    if topo_t.dim() == 1:
+                        topo_t = topo_t.unsqueeze(0)
+                    if topo_t.shape[0] == 1 and N > 1:
+                        topo_t = topo_t.expand(N, *topo_t.shape[1:]).contiguous()
+                    
+                    out = policy_net(states, topo_t).detach()
+                    if out.ndim >= 2:
+                        out = out.view(out.shape[0], -1)[:, 0]
+                    y_RL = -out.cpu().numpy().reshape(-1)
+                    
+                    policy_net.train(was_training)
+                    
+            except Exception as e:
+                print(f'[Training] Agent {i} inference failed: {e}')
+                y_RL = np.zeros(N)
+            
+            y_lin_list.append(y_lin.tolist())
+            y_RL_list.append(y_RL.tolist())
+
+        return {
+            'x': x.tolist(),
+            'y_lin_list': y_lin_list,
+            'y_RL_list': y_RL_list
+        }
+        
+    except Exception as e:
+        print(f'[Training] compute_policy_curves failed: {e}')
+        return None
 
 agent_list = []
 replay_buffer_list = []
@@ -203,6 +277,10 @@ for i in range(num_agent):
 #     agent_list[i].value_net.load_state_dict(value_net_dict)
 #     agent_list[i].policy_net.load_state_dict(policy_net_dict)
 
+# start dashboard
+store = PlotStore(ENV=ENV, title=title, num_agent=num_agent, N=40)
+app, th = start_dashboard(store, host="127.0.0.1", port=8050)
+
 rewards_history = []
 avg_reward_list = []
 
@@ -214,18 +292,27 @@ for episode in range(num_episodes+1):
     # logger.debug('add reward {} to episode', episode_reward)
     episode_reward = 0
     last_action = np.zeros((num_agent,1))
-    plot_policy(agent_list,torch.cuda.FloatTensor(topology).unsqueeze(0))
-    if episode%50==0:
-        fig_path = os.path.join(Config.data_path,f'images/policy_img/{today}/seed{seed}_episode_{episode}.png')
-        plt.savefig(fig_path)
-        logger.info(f'save policy image to {fig_path}')
+    fig_path = os.path.join(Config.data_path, f'images/policy_img/{today}/seed{seed}_episode_{episode}.png')
+
+    # update policy in dashboard
+    plot_data = compute_policy_curves(agent_list, topology, ENV, num_agent)
+    if plot_data is not None:
+        store.bump_policy(plot_data=plot_data)
+
+    # use PlotStore save figure
+    if episode % 50 == 0:
+        if plot_data is not None:  # 使用刚计算的数据
+            store.bump_policy(plot_data=plot_data)
+        # 然后保存
+        success = store.save_figure(fig_path, episode, seed)
 
     for step in range(num_steps):
         if keyboard.is_pressed('end'):
             break
 
         action = []
-        topology = torch.cuda.FloatTensor(topology).unsqueeze(0)
+        topology = torch.tensor(topology, device='cuda', dtype=torch.float32).unsqueeze(0)
+
         for i in range(num_agent):
             # sample action according to the current policy and exploration noise
             state_i = torch.cuda.FloatTensor(state[i].reshape(1,)).unsqueeze(0)
@@ -299,14 +386,21 @@ for episode in range(num_episodes+1):
             logger.info('value net parameters had saved to {}', value_pth + f'Step_{episode}_Seed_{seed}_a{i}.pth')
             logger.info('policy_net parameters had saved to {}', policy_pth + f'Step_{episode}_Seed_{seed}_a{i}.pth')
 
-        plt.savefig(Config.data_path + f'images/policy_img/{today}/seed{seed}_episode_{episode}.png')
-        logger.info(f'save policy image to images/policy_img/{today}/seed{seed}_episode_{episode}.png')
+        if store.save_figure(fig_path, episode, seed):
+            logger.info(f'save policy image to {fig_path}')
+        else:
+            logger.warning(f'failed to save policy image to {fig_path}')
         break
 
     if not done:
         logger.info('episode {} finish with entire step!', episode)
     logger.info('reward of this trojectory was {}', episode_reward)
     rewards_history.append(episode_reward)
+
+    # update dashboard
+    store.add_reward(episode, episode_reward)
+    store.bump_reward()
+
     avg_reward = np.mean(rewards_history[-50:])
     logger.trace(action)
     if(episode%10==0):

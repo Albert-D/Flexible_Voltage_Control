@@ -208,7 +208,7 @@ class FlexiblePolicyNet(nn.Module):
         self.topology_net = topology_net
         self.scale = scale
 
-        # this matrix used to guarantee the sum of w matrix is postive
+        # this matrix used to guarantee the sum of w matrix is positive
         self.w_triangle = torch.ones((self.hidden_dim, self.hidden_dim))
         self.w_triangle = -torch.triu(self.w_triangle, diagonal=0) + torch.triu(self.w_triangle, diagonal=2)\
                         + 2*torch.eye(self.hidden_dim)
@@ -217,7 +217,7 @@ class FlexiblePolicyNet(nn.Module):
         self.b_triangle = torch.ones((self.hidden_dim, self.hidden_dim))
         self.b_triangle = torch.triu(self.b_triangle, diagonal=1)
 
-        #define parameters of NN
+        # define parameters of NN
         self.b = torch.nn.Parameter(torch.rand(self.hidden_dim), requires_grad=True)
         self.c = torch.nn.Parameter(torch.rand(self.hidden_dim), requires_grad=True)
         self.q = torch.nn.Parameter(torch.rand(action_dim, self.hidden_dim), requires_grad=True)
@@ -227,7 +227,7 @@ class FlexiblePolicyNet(nn.Module):
         self.c.data = (self.c.data / torch.sum(self.c.data)) * self.scale
 
     def forward(self, state, topology):
-        #logger.trace('input dimansion of nn are: {},{}',state.shape,topology.shape)
+        # logger.trace('input dimension of nn are: {},{}',state.shape,topology.shape)
         topology = F.normalize(topology, dim=1)
         y1 = self.topology_net(topology)
 
@@ -249,21 +249,22 @@ class FlexiblePolicyNet(nn.Module):
 
         # self.w_plus = torch.square(self.q) @ self.w_triangle
         # self.w_minus = -torch.square(self.q) @ self.w_triangle
-        self.w_plus = q_constrain @ self.w_triangle
-        self.w_minus = -q_constrain @ self.w_triangle
+        self.w_plus = q_constrain @ self.w_triangle.to(device=state.device)
+        self.w_minus = -q_constrain @ self.w_triangle.to(device=state.device)
 
-        self.b_plus=torch.matmul(-self.b, self.b_triangle) - torch.tensor(self.env.vmax - 0.005)
-        self.b_minus=torch.matmul(-self.b, self.b_triangle) + torch.tensor(self.env.vmin + 0.005)
+        self.b_plus = torch.matmul(-self.b, self.b_triangle.to(device=state.device)) - torch.tensor(self.env.vmax - 0.005, device=state.device, dtype=state.dtype)
+        self.b_minus = torch.matmul(-self.b, self.b_triangle.to(device=state.device)) + torch.tensor(self.env.vmin + 0.005, device=state.device, dtype=state.dtype)
         # self.b_plus=torch.matmul(-self.b, self.b_triangle) - torch.tensor(self.env.vmax)
         # self.b_minus=torch.matmul(-self.b, self.b_triangle) + torch.tensor(self.env.vmin)
 
-        self.nonlinear_plus = F.relu(input @ (torch.ones(input_dim, self.hidden_dim)) + 
+        ones_matrix = torch.ones(input_dim, self.hidden_dim, device=state.device, dtype=state.dtype)
+        self.nonlinear_plus = F.relu(input @ ones_matrix + 
                                 self.b_plus.view(1, self.hidden_dim)) @ self.w_plus.t()
-        self.nonlinear_minus = F.relu(input @ (-torch.ones(input_dim, self.hidden_dim)) + 
+        self.nonlinear_minus = F.relu(input @ (-ones_matrix) + 
                                 self.b_minus.view(1, self.hidden_dim)) @ self.w_minus.t()
         
         y2 = self.nonlinear_plus + self.nonlinear_minus
-        #logger.trace('y1 = {}, y2 = {}',y1,y2)
+        # logger.trace('y1 = {}, y2 = {}',y1,y2)
 
         y = y1 * y2
 

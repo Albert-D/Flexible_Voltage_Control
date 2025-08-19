@@ -3,9 +3,9 @@
 class Config:
 
     # used in reward funtion
-    cost_g_a = -0.1       # weight of global action cost
+    cost_g_a = -0       # weight of global action cost
     cost_g_v = -50     # weight of global voltage error cost
-    cost_l_a = -1       # weight of local action cost
+    cost_l_a = -0.2       # weight of local action cost
     cost_l_v = -100     # weight of local voltage error cost
 
     cost_g_a_56bus = -1       # weight of global action cost
@@ -37,9 +37,11 @@ class Config:
     topology_hidden_dim = 256   # hidden neurons in topology nn module
     total_episodes = 1000
     total_steps = 60        # trajetory length each episode
+    total_steps_123bus = 30
     batch_size = 256
+    batch_size_123bus = 512
 
-    max_action = 25        #maximum output of q_dot
+    max_action = 50        #maximum output of q_dot
     max_action_56bus = 25
 
     # nn module parameter
