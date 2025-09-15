@@ -47,7 +47,7 @@ if not os.path.exists(Config.data_path + f'images/reward_img/{today}/'):
 algorithm = 'TD3'
 
 ### define which envrionment to use, '56bus' or '123bus'
-ENV = '123bus'
+ENV = '56bus'
 
 ### create trainning environment
 if ENV == '56bus':
@@ -58,6 +58,11 @@ elif ENV == '123bus':
     injection_bus = np.array([9, 10, 15, 19, 32, 35, 47, 58, 65, 74, 82, 91, 103, 60]) #11, 36, 75,/ 1,5,9
     pp_net = create_123bus()
     env = Env_123bus(pp_net, injection_bus)
+elif ENV == '56bus_10':
+    # injection_bus = np.array([5, 9, 18, 19, 21, 25, 30, 45, 48, 53])-1
+    injection_bus = np.array([5, 9, 18, 21, 30, 45, 53])-1
+    pp_net = create_56bus_10()
+    env = VoltageCtrl_Env(pp_net, injection_bus)
 
 # Read the seed value from the configuration file or initialize it to 0
 # 123bus seed 2
@@ -81,7 +86,7 @@ action_dim = Config.action_dim
 topology_hidden_dim = Config.topology_hidden_dim
 num_episodes = Config.total_episodes
 plot = False                            # if/not plot trained policy every # episodes
-if ENV == '56bus':
+if ENV == '56bus' or ENV == '56bus_10':
     maxaction = Config.max_action_56bus
     minaction = -Config.max_action_56bus
     num_steps = Config.total_steps          # trajetory length each episode
@@ -106,6 +111,9 @@ elif ENV == '123bus':
     # fig, axs = plt.subplots(2, 7, figsize=(15,6))
     title = ['Bus 9', 'Bus 10', 'Bus 15', 'Bus19', 'Bus 32', 'Bus 35', 'Bus 47', 
                 'Bus 58', 'Bus 65', 'Bus 74', 'Bus 72', 'Bus 91', 'Bus 103', 'Bus 60']
+elif ENV == '56bus_10':
+    # fig, axs = plt.subplots(2, 5, figsize=(15,6))
+    title = ['Bus 5', 'Bus 9', 'Bus 18', 'Bus 19', 'Bus 21', 'Bus 25', 'Bus 30', 'Bus 45', 'Bus 48', 'Bus 53']
     
 
 # def plot_policy(agent_list, topology):
@@ -233,7 +241,7 @@ for i in range(num_agent):
         target_value_net = Q_Network(obs_dim=1, action_dim=action_dim,hidden_dim=256).to(device)
 
     # Initialize the actor netowrk
-    if ENV == '56bus':
+    if ENV == '56bus' or ENV == '56bus_10':
         topology_net = TopologyNet(topology_dim=env.topology_dim, output_dim=1, hidden_dim=topology_hidden_dim)
         policy_net = FlexiblePolicyNet(env=env, topology_net=topology_net, obs_dim=obs_dim, 
                                     action_dim=action_dim, hidden_dim=Config.hidden_dim_56bus).to(device)
@@ -288,9 +296,6 @@ avg_reward_list = []
 for episode in range(num_episodes+1):
     #logger.info('------ now training episode {}  ------', episode)
     state, topology, senario = env.reset_topo(seed = episode)
-    #topology = env.network.line.x_ohm_per_km
-    # episode_reward = (np.clip(np.max(state)-env.v0, 0, np.inf) + np.clip(env.v0 - np.min(state), 0, np.inf)) * 3000
-    # logger.debug('add reward {} to episode', episode_reward)
     episode_reward = 0
     last_action = np.zeros((num_agent,1))
     fig_path = os.path.join(Config.data_path, f'images/policy_img/{today}/seed{seed}_episode_{episode}.png')
@@ -316,7 +321,7 @@ for episode in range(num_episodes+1):
 
         for i in range(num_agent):
             # sample action according to the current policy and exploration noise
-            state_i = torch.cuda.FloatTensor(state[i].reshape(1,)).unsqueeze(0)
+            state_i = torch.tensor(state[i].reshape(1,), device='cuda', dtype=torch.float32).unsqueeze(0)
             action_agent = agent_list[i].policy_net(state_i, topology)
             if episode < 30:
                 epsilon = np.random.normal(0, 0.5) / (episode+1)

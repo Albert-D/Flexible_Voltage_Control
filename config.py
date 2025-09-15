@@ -27,7 +27,6 @@ class Config:
     value_milestones = [1500, 3000, 5000, 9000]
 
     # traing parameter
-    agent_num = 5           # agent number is equal to the controllable buses
     obs_dim = 56            # obs_dim = the dimensions of voltage state + the dimensions of topology matrix
     state_dim = 1           # voltage state
     topology_dim = 55       # topology matrix dimensions

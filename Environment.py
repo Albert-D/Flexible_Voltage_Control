@@ -676,6 +676,35 @@ def create_56bus():
     
     return pp_net
 
+# create a 56 bus system with 10 PV nodes
+def create_56bus_10():
+    pp_net = pp.converter.from_mpc('data/SCE_56bus.mat', casename_mpc_file='case_mpc')
+    pp_net.sgen['p_mw'] = 0.0
+    pp_net.sgen['q_mvar'] = 0.0
+
+    pp.create_sgen(pp_net, 17, p_mw = 1.5, q_mvar=0)
+    pp.create_sgen(pp_net, 20, p_mw = 1, q_mvar=0)
+    pp.create_sgen(pp_net, 29, p_mw = 1, q_mvar=0)
+    pp.create_sgen(pp_net, 44, p_mw = 2, q_mvar=0)
+    pp.create_sgen(pp_net, 52, p_mw = 2, q_mvar=0)
+    pp.create_sgen(pp_net, 4, p_mw = 1.5, q_mvar=0)
+    pp.create_sgen(pp_net, 8, p_mw = 1, q_mvar=0)
+    # pp.create_sgen(pp_net, 24, p_mw = 1, q_mvar=0)
+    # pp.create_sgen(pp_net, 47, p_mw = 1, q_mvar=0)
+    # pp.create_sgen(pp_net, 18, p_mw = 1, q_mvar=0)
+
+    # define which lines can be closed or opened
+    switch_lines = [7, 10, 12, 14, 22, 31, 33, 34, 35, 36, 37, 38, 41, 42, 46, 48, 50, 54]
+    lines_connect_buses = [7, 10, 12, 14, 22, 31, 33, 33, 35, 33, 37, 38, 41, 41, 46, 48, 50, 52]
+    
+
+    for i in range(len(switch_lines)):
+        pp.create_switch(pp_net, bus=lines_connect_buses[i], 
+                            element=switch_lines[i], et='l', closed=True)
+    
+    return pp_net
+
+
 def create_123bus():
     pp_net = pp.converter.from_mpc('data/case_123.mat', casename_mpc_file='case_mpc')
     
@@ -714,16 +743,16 @@ def create_123bus():
 
 if __name__ == "__main__":
 
-    # injection_bus = np.array([18, 21, 30, 45, 53])-1
-    # pp_net = create_56bus()
-    # env = VoltageCtrl_Env(pp_net, injection_bus)
+    injection_bus = np.array([5, 9, 18, 21, 30, 45, 53])-1
+    pp_net = create_56bus_10()
+    env = VoltageCtrl_Env(pp_net, injection_bus)
 
-    injection_bus = np.array([9, 10, 15, 19, 32, 35, 47, 58, 65, 74, 82, 91, 103, 60]) #11, 36, 75,/ 1,5,9
-    pp_net = create_123bus()
-    env = Env_123bus(pp_net, injection_bus)
+    # injection_bus = np.array([9, 10, 15, 19, 32, 35, 47, 58, 65, 74, 82, 91, 103, 60]) #11, 36, 75,/ 1,5,9
+    # pp_net = create_123bus()
+    # env = Env_123bus(pp_net, injection_bus)
 
     for i in range(5):
-        state, topology, scenario = env.reset_topo(i+5)
+        state, topology, scenario = env.reset_topo(i+50)
         topology = torch.cuda.FloatTensor(topology).unsqueeze(0)
         # topology = topology.expand(64,55)
         topology = F.normalize(topology)
@@ -733,7 +762,7 @@ if __name__ == "__main__":
     print(pp_net.sgen)
 
     simple_plotly(env.network, figsize=2)
-    #pf_res_plotly(pp_net)
+    pf_res_plotly(pp_net)
 
 
 
