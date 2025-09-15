@@ -60,6 +60,7 @@ elif ENV == '123bus':
     env = Env_123bus(pp_net, injection_bus)
 
 # Read the seed value from the configuration file or initialize it to 0
+# 123bus seed 2
 try:
     with open('seed.txt', 'r') as file:
         seed = int(file.read())
@@ -79,15 +80,17 @@ obs_dim = Config.obs_dim
 action_dim = Config.action_dim
 topology_hidden_dim = Config.topology_hidden_dim
 num_episodes = Config.total_episodes
-num_steps = Config.total_steps_123bus          # trajetory length each episode
-batch_size = Config.batch_size_123bus
 plot = False                            # if/not plot trained policy every # episodes
 if ENV == '56bus':
     maxaction = Config.max_action_56bus
     minaction = -Config.max_action_56bus
+    num_steps = Config.total_steps          # trajetory length each episode
+    batch_size = Config.batch_size
 elif ENV == '123bus':
     maxaction = Config.max_action
     minaction = -Config.max_action
+    num_steps = Config.total_steps_123bus          # trajetory length each episode
+    batch_size = Config.batch_size_123bus
 
 
 """
@@ -175,13 +178,11 @@ def compute_policy_curves(agent_list, topology, ENV, num_agent, N=40):
                 with torch.no_grad():
                     policy_net.eval()
                     
-                    # ✅ 批处理：一次性处理所有状态
                     states = torch.from_numpy(s_array).to(
                         device=target_device, 
                         dtype=torch.float32
                     ).view(N, 1)
                     
-                    # 处理topology维度
                     if torch.is_tensor(topology):
                         topo_t = topology.to(device=target_device, dtype=torch.float32)
                     else:
@@ -431,3 +432,9 @@ plt.ylabel('Reward')
 plt.grid(True)
 plt.savefig(Config.data_path + f'images/reward_img/{today}/avg_reward_{seed}.png')
 plt.show()
+
+print("Training completed, saving final reward figure...")
+final_reward_path = Config.data_path + f'images/reward_img/{today}/'
+success = store.save_reward_figure(final_reward_path, seed=seed)
+if success:
+    print(f"Final reward figure saved to {final_reward_path}")
