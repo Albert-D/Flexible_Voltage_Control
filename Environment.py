@@ -168,6 +168,9 @@ class VoltageCtrl_Env(gym.Env):
 
         return self.topology
     
+    def get_all_state(self):
+        return self.network.res_bus.vm_pu.to_numpy()
+    
     def topology_reset(self):
         self.network.line.x_ohm_per_km = self.topology_init
         self.topology = 1/self.network.line.x_ohm_per_km
@@ -412,7 +415,7 @@ class VoltageCtrl_Env(gym.Env):
 
         return self.state, self.topology, scenario
     
-    def reset_topo(self, seed=1): #initial volateg conditions with topology change
+    def reset_topo(self, seed=1, manual_switch=None): #initial volateg conditions with topology change
         np.random.seed(seed)
         scenario = np.random.choice([0, 1])
         #scenario = np.random.choice([0, 1, 3])
@@ -453,20 +456,23 @@ class VoltageCtrl_Env(gym.Env):
             self.network.load['q_mvar'] = 0.0
             
             self.network.sgen.at[1, 'p_mw'] = -2*np.random.uniform(2, 3)
-            self.network.sgen.at[2, 'p_mw'] = np.random.uniform(15, 35)
+            self.network.sgen.at[2, 'p_mw'] = np.random.uniform(5, 15)
             self.network.sgen.at[2, 'q_mvar'] = 0.1*self.network.sgen.at[2, 'p_mw']
             self.network.sgen.at[3, 'p_mw'] = 0.2*np.random.uniform(2, 12)
             self.network.sgen.at[4, 'p_mw'] = -2*np.random.uniform(2, 8) 
             self.network.sgen.at[5, 'p_mw'] = 0.2*np.random.uniform(2, 12) 
-            self.network.sgen.at[5, 'q_mvar'] = 0.2*self.network.sgen.at[5, 'p_mw']
+            self.network.sgen.at[5, 'q_mvar'] = 0.1*self.network.sgen.at[5, 'p_mw']
 
         random_change_lsit = np.random.choice([True,False], size=len(self.network.switch))
+        if manual_switch is not None:
+            for idx, state in manual_switch.items():
+                if 0 <= idx < len(random_change_lsit):
+                    random_change_lsit[idx] = state
         # logger.debug(random_change_lsit)
 
         for i in range(len(random_change_lsit)):
             self.network.switch.at[i, 'closed'] = random_change_lsit[i]
             if not random_change_lsit[i]:
-
                 self.topology[self.network.switch.element[i]] = np.random.uniform(-0.01,0.01)
 
         
@@ -565,7 +571,7 @@ class Env_123bus(gym.Env):
         
         return self.state, topology, reward, reward_sep, done
     
-    def reset_topo(self, seed=1): #initial volateg conditions with topology change
+    def reset_topo(self, seed=1, manual_switch=None): #initial volateg conditions with topology change
         np.random.seed(seed)
         scenario = np.random.choice([0, 1])
         # scenario = 3
@@ -628,6 +634,10 @@ class Env_123bus(gym.Env):
             self.network.sgen.at[16, 'p_mw'] = 0.8*np.random.uniform(10, 20)
 
         random_change_lsit = np.random.choice([True,False], size=len(self.network.switch))
+        if manual_switch is not None:
+            for idx, state in manual_switch.items():
+                if 0 <= idx < len(random_change_lsit):
+                    random_change_lsit[idx] = state
         #logger.debug(random_change_lsit)
         
         for i in range(len(random_change_lsit)):
@@ -687,11 +697,11 @@ def create_56bus_10():
     pp.create_sgen(pp_net, 29, p_mw = 1, q_mvar=0)
     pp.create_sgen(pp_net, 44, p_mw = 2, q_mvar=0)
     pp.create_sgen(pp_net, 52, p_mw = 2, q_mvar=0)
-    pp.create_sgen(pp_net, 4, p_mw = 1.5, q_mvar=0)
-    pp.create_sgen(pp_net, 8, p_mw = 1, q_mvar=0)
-    # pp.create_sgen(pp_net, 24, p_mw = 1, q_mvar=0)
-    # pp.create_sgen(pp_net, 47, p_mw = 1, q_mvar=0)
-    # pp.create_sgen(pp_net, 18, p_mw = 1, q_mvar=0)
+    pp.create_sgen(pp_net, 33, p_mw = 1.5, q_mvar=0) #
+    pp.create_sgen(pp_net, 14, p_mw = 1, q_mvar=0)  #
+    pp.create_sgen(pp_net, 24, p_mw = 1, q_mvar=0)  #
+    pp.create_sgen(pp_net, 45, p_mw = 1, q_mvar=0)
+    pp.create_sgen(pp_net, 18, p_mw = 1, q_mvar=0)
 
     # define which lines can be closed or opened
     switch_lines = [7, 10, 12, 14, 22, 31, 33, 34, 35, 36, 37, 38, 41, 42, 46, 48, 50, 54]
@@ -743,7 +753,7 @@ def create_123bus():
 
 if __name__ == "__main__":
 
-    injection_bus = np.array([5, 9, 18, 21, 30, 45, 53])-1
+    injection_bus = np.array([11, 15, 18, 21, 27, 30, 34, 45, 46, 53])-1
     pp_net = create_56bus_10()
     env = VoltageCtrl_Env(pp_net, injection_bus)
 
@@ -751,11 +761,13 @@ if __name__ == "__main__":
     # pp_net = create_123bus()
     # env = Env_123bus(pp_net, injection_bus)
 
-    for i in range(5):
+    for i in range(50):
         state, topology, scenario = env.reset_topo(i+50)
         topology = torch.cuda.FloatTensor(topology).unsqueeze(0)
         # topology = topology.expand(64,55)
         topology = F.normalize(topology)
+        env.step_uncertain(np.zeros(env.agentnum,))
+        print('episode:', i, 'scenario:', scenario)
     high_volt = 0
     low_volt = 0
     # print(env.network.line.x_ohm_per_km)

@@ -10,6 +10,8 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from flask import jsonify
 
+from config import Config
+
 class PlotStore:
     def __init__(self, ENV, title, num_agent, N=40):
         self.ENV = ENV
@@ -355,14 +357,57 @@ def create_app(store: PlotStore) -> Dash:
     app.layout = html.Div(
         style={"padding": "8px"},
         children=[
+            # 顶部控制栏
             html.Div(
-                style={"display": "flex", "gap": "12px", "alignItems": "center", "flexWrap": "wrap"},
+                style={"display": "flex", "gap": "12px", "alignItems": "center", "flexWrap": "wrap", "marginBottom": "10px"},
                 children=[
                     html.H3("RLC-FT Policy Monitor", style={"margin": "4px 0"}),
                     dcc.Slider(id="interval-ms", min=100, max=5000, step=50, value=1000,
                             marks=None, tooltip={"placement": "bottom", "always_visible": True},
                             updatemode="drag"),
                     html.Span("Polling interval (ms)"),
+                ],
+            ),
+
+            # ✅ 新增：保存控制区域
+            html.Div(
+                style={"display": "flex", "gap": "10px", "alignItems": "center", "marginBottom": "15px", 
+                       "padding": "10px", "backgroundColor": "#f8f9fa", "borderRadius": "5px"},
+                children=[
+                    html.Div([
+                        html.Label("Save Path:", style={"fontWeight": "bold", "marginRight": "5px"}),
+                        dcc.Input(
+                            id="save-path-input",
+                            type="text",
+                            placeholder="./results",
+                            value="./results",
+                            style={"width": "200px", "marginRight": "10px"}
+                        ),
+                    ]),
+                    html.Div([
+                        html.Label("Seed:", style={"fontWeight": "bold", "marginRight": "5px"}),
+                        dcc.Input(
+                            id="seed-input",
+                            type="number",
+                            placeholder="42",
+                            value=42,
+                            style={"width": "80px", "marginRight": "10px"}
+                        ),
+                    ]),
+                    html.Button(
+                        "Save Reward Figure",
+                        id="save-reward-btn",
+                        style={
+                            "backgroundColor": "#28a745",
+                            "color": "white",
+                            "border": "none",
+                            "padding": "8px 16px",
+                            "borderRadius": "4px",
+                            "cursor": "pointer",
+                            "fontWeight": "bold"
+                        }
+                    ),
+                    html.Div(id="save-status", style={"marginLeft": "10px", "fontWeight": "bold"})
                 ],
             ),
 
@@ -382,7 +427,7 @@ def create_app(store: PlotStore) -> Dash:
             ]),
 
             # Lightweight polling
-            dcc.Interval(id="timer", interval=1000, n_intervals=0),
+            dcc.Interval(id="timer", interval=2000, n_intervals=0),
             
             # Store components
             dcc.Store(id="policy-version-store", data={"version": 0}),
@@ -397,7 +442,51 @@ def create_app(store: PlotStore) -> Dash:
         prevent_initial_call=False
     )
     def _set_interval(v):
-        return int(v or 1000)
+        return int(v or 2000)
+
+    # ✅ 新增：保存按钮回调
+    @app.callback(
+        Output("save-status", "children"),
+        Output("save-status", "style"),
+        Input("save-reward-btn", "n_clicks"),
+        State("save-path-input", "value"),
+        State("seed-input", "value"),
+        prevent_initial_call=True
+    )
+    def save_reward_figure_callback(n_clicks, save_path, seed):
+        if n_clicks is None:
+            return "", {"display": "none"}
+        
+        try:
+            # 使用默认值如果输入为空
+            if not save_path or save_path.strip() == "":
+                import datetime
+                today = datetime.date.today().strftime("%Y-%m-%d")
+                save_path = Config.data_path + f'images/reward_img/{today}/'
+            if seed is None:
+                seed = 42
+                
+            # 调用保存函数
+            success = store.save_reward_figure(save_path, seed)
+            
+            if success:
+                return f"✅ Saved successfully! (Seed: {seed})", {
+                    "color": "#28a745", 
+                    "marginLeft": "10px", 
+                    "fontWeight": "bold"
+                }
+            else:
+                return "❌ Save failed - No data available", {
+                    "color": "#dc3545", 
+                    "marginLeft": "10px", 
+                    "fontWeight": "bold"
+                }
+        except Exception as e:
+            return f"❌ Save failed: {str(e)}", {
+                "color": "#dc3545", 
+                "marginLeft": "10px", 
+                "fontWeight": "bold"
+            }
 
     @app.callback(
         Output("reward-figure", "figure"),
@@ -489,18 +578,12 @@ def start_dashboard(store: PlotStore, host: str = "127.0.0.1", port: int = 8050)
     def _run():
         import logging
         log = logging.getLogger('werkzeug')
-        log.setLevel(logging.ERROR)
+        log.setLevel(logging.WARNING)
 
-        if hasattr(app, "run"):
-            try:
-                app.run(host=host, port=port, debug=False)
-                return
-            except TypeError:
-                pass
-        if hasattr(app, "run_server"):
-            app.run_server(host=host, port=port, debug=False, use_reloader=False)
-        else:
-            raise RuntimeError("Dash app has neither .run nor .run_server")
+        try:
+            app.run(host=host, port=port, debug=False)
+        except Exception as e:
+            print(f"[Dash] Failed to start dashboard: {e}")
 
     th = threading.Thread(target=_run, daemon=True)
     th.start()

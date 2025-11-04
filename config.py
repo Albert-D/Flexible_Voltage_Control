@@ -8,10 +8,10 @@ class Config:
     cost_l_a = -0.2       # weight of local action cost
     cost_l_v = -100     # weight of local voltage error cost
 
-    cost_g_a_56bus = -1       # weight of global action cost
-    cost_g_v_56bus = -50     # weight of global voltage error cost
-    cost_l_a_56bus = -1       # weight of local action cost
-    cost_l_v_56bus = -20     # weight of local voltage error cost
+    cost_g_a_56bus = -0       # weight of global action cost    -1
+    cost_g_v_56bus = -50     # weight of global voltage error cost  -50
+    cost_l_a_56bus = -5       # weight of local action cost  -1
+    cost_l_v_56bus = -50     # weight of local voltage error cost   -20
 
     # traning golbal reward and local reward
     r_global_weight = 0.5
@@ -34,7 +34,7 @@ class Config:
     hidden_dim_123bus = 1024
     hidden_dim_56bus = 2048     #2048
     topology_hidden_dim = 256   # hidden neurons in topology nn module
-    total_episodes = 1000
+    total_episodes = 500
     total_steps = 60        # trajetory length each episode
     total_steps_123bus = 30
     batch_size = 256

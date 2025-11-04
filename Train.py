@@ -47,22 +47,28 @@ if not os.path.exists(Config.data_path + f'images/reward_img/{today}/'):
 algorithm = 'TD3'
 
 ### define which envrionment to use, '56bus' or '123bus'
-ENV = '56bus'
+ENV = '56bus_10'
 
 ### create trainning environment
 if ENV == '56bus':
     injection_bus = np.array([18, 21, 30, 45, 53])-1
     pp_net = create_56bus()
     env = VoltageCtrl_Env(pp_net, injection_bus)
+    title = ['Bus 18', 'Bus 21', 'Bus 30', 'Bus 45', 'Bus 53']
+
 elif ENV == '123bus':
     injection_bus = np.array([9, 10, 15, 19, 32, 35, 47, 58, 65, 74, 82, 91, 103, 60]) #11, 36, 75,/ 1,5,9
     pp_net = create_123bus()
     env = Env_123bus(pp_net, injection_bus)
+    title = ['Bus 9', 'Bus 10', 'Bus 15', 'Bus19', 'Bus 32', 'Bus 35', 'Bus 47', 
+                'Bus 58', 'Bus 65', 'Bus 74', 'Bus 72', 'Bus 91', 'Bus 103', 'Bus 60']
+
 elif ENV == '56bus_10':
     # injection_bus = np.array([5, 9, 18, 19, 21, 25, 30, 45, 48, 53])-1
-    injection_bus = np.array([5, 9, 18, 21, 30, 45, 53])-1
+    injection_bus = np.array([11, 15, 18, 21, 27, 30, 34, 45, 46, 53])-1
     pp_net = create_56bus_10()
     env = VoltageCtrl_Env(pp_net, injection_bus)
+    title = ['bus 11', 'Bus 15', 'Bus 18', 'Bus 21', 'Bus 27', 'Bus 30', 'bus 34', 'Bus 45', 'Bus 48', 'Bus 53']
 
 # Read the seed value from the configuration file or initialize it to 0
 # 123bus seed 2
@@ -102,19 +108,6 @@ elif ENV == '123bus':
 Create Agent list and replay buffer
 """
 torch.manual_seed(seed)
-
-# be careful that this figure is defined galbal but use in function below
-if ENV == '56bus':
-    # fig, axs = plt.subplots(1, 5, figsize=(15,3))
-    title = ['Bus 18', 'Bus 21', 'Bus 30', 'Bus 45', 'Bus 53']
-elif ENV == '123bus':
-    # fig, axs = plt.subplots(2, 7, figsize=(15,6))
-    title = ['Bus 9', 'Bus 10', 'Bus 15', 'Bus19', 'Bus 32', 'Bus 35', 'Bus 47', 
-                'Bus 58', 'Bus 65', 'Bus 74', 'Bus 72', 'Bus 91', 'Bus 103', 'Bus 60']
-elif ENV == '56bus_10':
-    # fig, axs = plt.subplots(2, 5, figsize=(15,6))
-    title = ['Bus 5', 'Bus 9', 'Bus 18', 'Bus 19', 'Bus 21', 'Bus 25', 'Bus 30', 'Bus 45', 'Bus 48', 'Bus 53']
-    
 
 # def plot_policy(agent_list, topology):
 #     plt.cla()
@@ -230,6 +223,8 @@ replay_buffer_list = []
 high_buffer_list = []
 low_buffer_list = []
 
+logger.warning(f'number of agents: {num_agent}, algorithm: {algorithm}, env: {ENV}, seed: {seed}')
+
 ### initilize network and DDPG
 for i in range(num_agent):
     # Initialize the critic network 
@@ -293,9 +288,12 @@ app, th = start_dashboard(store, host="127.0.0.1", port=8050)
 rewards_history = []
 avg_reward_list = []
 
+logger.info('Start training...')
+
 for episode in range(num_episodes+1):
     #logger.info('------ now training episode {}  ------', episode)
-    state, topology, senario = env.reset_topo(seed = episode)
+    state, topology, scenario = env.reset_topo(seed = episode)
+    logger.info('Episode {}: scenario is {}', episode, 'low' if scenario == 0 else 'high')
     episode_reward = 0
     last_action = np.zeros((num_agent,1))
     fig_path = os.path.join(Config.data_path, f'images/policy_img/{today}/seed{seed}_episode_{episode}.png')
@@ -307,9 +305,9 @@ for episode in range(num_episodes+1):
 
     # use PlotStore save figure
     if episode % 50 == 0:
-        if plot_data is not None:  # 使用刚计算的数据
+        if plot_data is not None:
             store.bump_policy(plot_data=plot_data)
-        # 然后保存
+
         success = store.save_figure(fig_path, episode, seed)
 
     for step in range(num_steps):
@@ -337,11 +335,19 @@ for episode in range(num_episodes+1):
         action = last_action - np.asarray(action)
         # action = np.clip(action, -5.0, 5.0)
 
-        # execute action a_t and observe reward r_t and observe next state s_{t+1}
-        next_state, topology, reward, reward_sep, done = env.step_uncertain(action)
+        try:
+            next_state, topology, reward, reward_sep, done = env.step_uncertain(action)
+        except pp.powerflow.LoadflowNotConverged:
+            # logger.error(sys.exc_info())
+            logger.error('power flow not converge at epsisode{} step{}', episode, step)
+            abnormal_stop = True
+            break
 
         if(np.min(next_state) < 0.75 or np.max(next_state) > 1.25): #if voltage violation > 25%, episode ends.
-            logger.warning('step {} break, min_state is {}, max_state is {}', step, np.min(next_state), np.max(next_state))
+            # Identify which state(s) caused the issue
+            for idx, value in enumerate(next_state):
+                if value < 0.75 or value > 1.25:
+                    logger.warning('step {} break, state index {} caused violation with value: {}', step, idx, value)
             break
         else:
             for i in range(num_agent): 
@@ -364,10 +370,10 @@ for episode in range(num_episodes+1):
                         agent_list[i].train(replay_buffer=replay_buffer_list[i], iterations= i, batch_size=batch_size, 
                                             policy_noise=0.03, noise_clip=0.05, policy_freq=3)
                     
-                if senario == 0:    # low voltage
+                if scenario == 0:    # low voltage
                     low_buffer_list[i].push(state_buffer, topology, action_buffer, last_action_buffer,
                                             reward, next_state_buffer, done)
-                if senario == 1:    # high voltage
+                if scenario == 1:    # high voltage
                     high_buffer_list[i].push(state_buffer, topology, action_buffer, last_action_buffer,
                                             reward, next_state_buffer, done)
                     
