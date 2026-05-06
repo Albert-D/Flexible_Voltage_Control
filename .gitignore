@@ -102,3 +102,7 @@ check_points/
 images/
 
 seed.txt
+
+old_configs/
+
+*.png

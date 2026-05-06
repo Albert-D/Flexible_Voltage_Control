@@ -314,6 +314,85 @@ def plot_safe_net(net):
     ax.plot(s_array, a_array, label = 'RL')
     plt.show()
 
+
+#### The following are GCN-based Actor Network ####
+class GCNLayer(nn.Module):
+    """
+    Standard GCN Layer with internal normalization.
+    """
+    def __init__(self, in_features, out_features):
+        super(GCNLayer, self).__init__()
+        self.projection = nn.Linear(in_features, out_features)
+
+    def forward(self, x, adj):
+        """
+        x: [Batch, N, In_Features]
+        adj: [Batch, N, N] - Raw weighted adjacency from Env
+        """
+        # 1. Add Self-Loops (A_tilde = A + I)
+        batch_size, num_nodes, _ = adj.shape
+        identity = torch.eye(num_nodes, device=adj.device).unsqueeze(0).expand(batch_size, -1, -1)
+        adj_tilde = adj + identity
+        
+        # 2. Symmetric Normalization (D^-1/2 * A_tilde * D^-1/2)
+        degree = torch.sum(adj_tilde, dim=-1) # [Batch, N]
+        d_inv_sqrt = torch.pow(degree, -0.5)
+        d_inv_sqrt[torch.isinf(d_inv_sqrt)] = 0.0 # Handle division by zero
+        d_mat_inv_sqrt = torch.diag_embed(d_inv_sqrt) # [Batch, N, N]
+        
+        adj_norm = torch.matmul(torch.matmul(d_mat_inv_sqrt, adj_tilde), d_mat_inv_sqrt)
+        
+        # 3. Aggregation & Projection
+        support = torch.matmul(adj_norm, x) # [Batch, N, In]
+        output = self.projection(support)   # [Batch, N, Out]
+        
+        return output
+
+class DecentralizedGCNActor(nn.Module):
+    def __init__(self, node_feat_dim, action_dim_per_node, hidden_dim=64):
+        """
+        node_feat_dim: Dimension of features per node (e.g., 1 for just Voltage, 3 for V, P, Q).
+        action_dim_per_node: Dimension of action per node (usually 1 for Q_control).
+        """
+        super(DecentralizedGCNActor, self).__init__()
+        
+        # Encoder: Map raw features to hidden embedding
+        # This is applied to every node independently (Shared MLP)
+        self.encoder = nn.Linear(node_feat_dim, hidden_dim)
+        
+        # GCN Layers (Message Passing)
+        # Allows nodes to communicate with neighbors
+        self.gcn1 = GCNLayer(hidden_dim, hidden_dim)
+        self.gcn2 = GCNLayer(hidden_dim, hidden_dim)
+        
+        # Policy Head (Decoder)
+        # Applies to every node independently to generate its own action
+        self.policy_head = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, action_dim_per_node),
+            nn.Tanh() # Action usually bounded [-1, 1]
+        )
+
+    def forward(self, x, adj):
+        """
+        x: [Batch, N, node_feat_dim] - State of ALL nodes
+        adj: [Batch, N, N] - Adjacency Matrix
+        """
+        # 1. Local Encoding (Node-wise)
+        h = F.relu(self.encoder(x))
+        
+        # 2. Communication (Graph Convolution)
+        # Information flows from neighbors to self
+        h = F.relu(self.gcn1(h, adj))
+        h = F.relu(self.gcn2(h, adj))
+        
+        # 3. Local Decision (Node-wise)
+        # Output shape: [Batch, N, action_dim_per_node]
+        actions = self.policy_head(h)
+        
+        return actions
+
 if __name__ == "__main__":
 
     logger.info(f"Using {device} device")

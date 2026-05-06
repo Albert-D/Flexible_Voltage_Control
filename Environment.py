@@ -355,6 +355,36 @@ class VoltageCtrl_Env(gym.Env):
             pv_status.append(status)
         
         return pv_status
+    
+
+    # Get the weighted adjacency matrix based on current line parameters
+    def _get_adjacency_matrix(self):
+        """
+        Constructs the weighted adjacency matrix based on current line parameters.
+        Returns:
+            adj (np.array): [num_nodes, num_nodes] weighted matrix.
+        """
+        num_nodes = len(self.network.bus)
+        adj = np.zeros((num_nodes, num_nodes), dtype=np.float32)
+        
+        # Extract connectivity and weights (admittance = 1/impedance)
+        # Assuming topology_init or similar stores the base values, 
+        # but here we use the current line parameters directly from the pp_net object 
+        # to ensure we capture any dynamic changes made during reset.
+        
+        # Note: Ensure bus indices are 0-based integers for matrix indexing.
+        from_bus = self.network.line.from_bus.values.astype(int)
+        to_bus = self.network.line.to_bus.values.astype(int)
+        
+        # Calculate weights (e.g., admittance magnitude)
+        # You can use self.topology vector if it's already updated, or recalculate:
+        weights = 1.0 / self.network.line.x_ohm_per_km.values
+        
+        # Fill the matrix (Undirected graph -> Symmetric)
+        adj[from_bus, to_bus] = weights
+        adj[to_bus, from_bus] = weights
+        
+        return adj
 
     
     def reset(self, seed=1): #sample different initial volateg conditions during training
