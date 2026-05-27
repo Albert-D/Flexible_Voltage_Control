@@ -207,6 +207,7 @@ class FlexiblePolicyNet(nn.Module):
         self.action_dim = action_dim
         self.topology_net = topology_net
         self.scale = scale
+        self.without_topology_y2_constant = 1.0
 
         # this matrix used to guarantee the sum of w matrix is positive
         self.w_triangle = torch.ones((self.hidden_dim, self.hidden_dim))
@@ -226,12 +227,7 @@ class FlexiblePolicyNet(nn.Module):
         self.b.data = (self.b.data / torch.sum(self.b.data)) * self.scale
         self.c.data = (self.c.data / torch.sum(self.c.data)) * self.scale
 
-    def forward(self, state, topology):
-        # logger.trace('input dimension of nn are: {},{}',state.shape,topology.shape)
-        topology = F.normalize(topology, dim=1)
-        y1 = self.topology_net(topology)
-
-        # input = torch.cat((state,topology), dim=1)
+    def _forward_y1(self, state):
         input = state
         input_dim = input.size(dim=1)
 
@@ -263,12 +259,22 @@ class FlexiblePolicyNet(nn.Module):
         self.nonlinear_minus = F.relu(input @ (-ones_matrix) + 
                                 self.b_minus.view(1, self.hidden_dim)) @ self.w_minus.t()
         
-        y2 = self.nonlinear_plus + self.nonlinear_minus
+        return self.nonlinear_plus + self.nonlinear_minus
+
+    def forward_without_topology(self, state, topology=None):
+        # The topology argument is accepted for call-site compatibility.
+        y1 = self._forward_y1(state)
+        y2 = torch.full_like(y1, self.without_topology_y2_constant)
+        return y1 * y2
+
+    def forward(self, state, topology):
+        # logger.trace('input dimension of nn are: {},{}',state.shape,topology.shape)
+        topology = F.normalize(topology, dim=1)
+        y1 = self._forward_y1(state)
+        y2 = self.topology_net(topology)
         # logger.trace('y1 = {}, y2 = {}',y1,y2)
 
-        y = y1 * y2
-
-        return y
+        return y1 * y2
     
 def plot_net(net, topology):
     fig, ax = plt.subplots()

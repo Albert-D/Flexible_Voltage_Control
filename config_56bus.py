@@ -50,5 +50,8 @@ class Config:
 
     # exponential parameter of Lyapunov stability
     K = 0.01
+    ALPHA = 0.5
+    B_MAX = 0.1
+    D_MAX = 0.1
 
 
