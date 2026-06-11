@@ -207,7 +207,7 @@ class FlexiblePolicyNet(nn.Module):
         self.action_dim = action_dim
         self.topology_net = topology_net
         self.scale = scale
-        self.without_topology_y2_constant = 1.0
+        self.without_topology_y2_constant = 20.0
 
         # this matrix used to guarantee the sum of w matrix is positive
         self.w_triangle = torch.ones((self.hidden_dim, self.hidden_dim))
