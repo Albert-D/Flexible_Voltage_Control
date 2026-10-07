@@ -55,7 +55,8 @@ class VoltageCtrl_Env(gym.Env):
         self.gen0_q = np.copy(self.network.sgen['q_mvar'])
         
         self.state = np.ones(self.agentnum, )
-        self.topology_init = pp_net.line.x_ohm_per_km
+        self.resistance_init = np.copy(pp_net.line.r_ohm_per_km)
+        self.topology_init = np.copy(pp_net.line.x_ohm_per_km)
         self.topology = self.topology_init
 
         # Save original injection buses and agent number
@@ -152,7 +153,9 @@ class VoltageCtrl_Env(gym.Env):
     
     def topology_change(self, seed=0):
         np.random.seed(seed)
-        self.network.line.x_ohm_per_km = self.topology_init * np.random.uniform(0.5,1.5)
+        admittance_multipliers = np.random.uniform(0.5, 1.5, size=len(self.topology_init))
+        self.network.line.r_ohm_per_km = self.resistance_init / admittance_multipliers
+        self.network.line.x_ohm_per_km = self.topology_init / admittance_multipliers
         self.topology = 1/self.network.line.x_ohm_per_km
 
         random_change_lsit = np.random.choice([True,False], size=len(self.network.switch))
@@ -172,6 +175,7 @@ class VoltageCtrl_Env(gym.Env):
         return self.network.res_bus.vm_pu.to_numpy()
     
     def topology_reset(self):
+        self.network.line.r_ohm_per_km = self.resistance_init
         self.network.line.x_ohm_per_km = self.topology_init
         self.topology = 1/self.network.line.x_ohm_per_km
 
@@ -450,7 +454,9 @@ class VoltageCtrl_Env(gym.Env):
         scenario = np.random.choice([0, 1])
         #scenario = np.random.choice([0, 1, 3])
         # scenario = 3
-        self.network.line.x_ohm_per_km = self.topology_init * np.random.uniform(0.5,1.5)
+        admittance_multipliers = np.random.uniform(0.5, 1.5, size=len(self.topology_init))
+        self.network.line.r_ohm_per_km = self.resistance_init / admittance_multipliers
+        self.network.line.x_ohm_per_km = self.topology_init / admittance_multipliers
         self.topology = 1/self.network.line.x_ohm_per_km
 
         if(scenario == 0):#low voltage
@@ -543,7 +549,8 @@ class Env_123bus(gym.Env):
         self.gen0_q = np.copy(self.network.sgen['q_mvar'])
         
         self.state = np.ones(self.agentnum, )
-        self.topology_init = pp_net.line.x_ohm_per_km
+        self.resistance_init = np.copy(pp_net.line.r_ohm_per_km)
+        self.topology_init = np.copy(pp_net.line.x_ohm_per_km)
         self.topology = self.topology_init
 
     
@@ -605,7 +612,9 @@ class Env_123bus(gym.Env):
         np.random.seed(seed)
         scenario = np.random.choice([0, 1])
         # scenario = 3
-        self.network.line.x_ohm_per_km = self.topology_init * np.random.uniform(0.5,1.5)
+        admittance_multipliers = np.random.uniform(0.5, 1.5, size=len(self.topology_init))
+        self.network.line.r_ohm_per_km = self.resistance_init / admittance_multipliers
+        self.network.line.x_ohm_per_km = self.topology_init / admittance_multipliers
         self.topology = 1/self.network.line.x_ohm_per_km
         #self.topology = self.topology.to_numpy()
 

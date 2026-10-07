@@ -22,53 +22,76 @@ uv pip install -r requirements.txt
 
 **Option 2: Using Conda**
 ```bash
-conda env create -f conda_environment.yaml
-conda activate <your_env_name>
+conda env create -f "conda environment.yaml"
+conda activate PowerSystem
 ```
 
 ## Repository Structure
-The codebase is modularized to separate the power system environment, neural network architectures, and experiment configurations.
+* `data/`: Grid models and daily load/PV profiles.
+* `Environment.py`: The 56-bus and 123-bus power-flow environments.
+* `NN_Module.py`: RLC-FT and Safe-DDPG policy networks used by the performance evaluations.
+* `src/softplus_controller.py`: Shared Softplus RLC-FT architecture.
+* `Train.py`, `DDPG.py`, `TD3.py`, and `Utils.py`: Controller training and replay-buffer implementation.
+* `experiments/`: Training-efficiency and operational experiment entries.
+* `config.py`: Hyperparameters and the checkpoint/result directory, `Config.data_path`.
 
-* `data/`: Contains the original grid topology and load/generation profiles.
-
-* `Environment.py`: Defines the power distribution network environment.
-* `NN_Module.py` & `Hyper_Net_Module.py`: Contains the implementation of the RLC-FT policy networks.
-* `Train.py`: The main training script.
-* `DDPG.py` & `TD3.py`: Implementations of the foundational reinforcement learning algorithms used for optimization.
-* `dashboard.py`: Auxiliary tools for interactive visualization of the grid states and control trajectories.
-* `config.py`: Configuration and hyperparameter settings.
+Run commands from the repository root. Set `Config.data_path` to your checkpoint and result directory, and set the controller checkpoint paths in the evaluation notebooks' setup cells.
 
 ## Training a New Model
-To train the RLC-FT controller from scratch, ensure your desired configuration is set in the respective `config` file, then execute the main training script:
+For the controllers used in the performance evaluations, select `ENV = '56bus'` or `ENV = '123bus'` in `Train.py`, set the hyperparameters in `config.py`, and run:
 
 ```bash
 python Train.py
 ```
 
+The training-efficiency experiments use the following entries:
+
+| System | Training entry |
+| --- | --- |
+| 56-bus | `experiments/validated/softplus_training_56bus/run.py` |
+| 123-bus | `experiments/validated/softplus_training_123bus/run.py` |
+
+For example, to train a 56-bus controller with the training-efficiency settings:
+
+```bash
+python experiments/validated/softplus_training_56bus/run.py prepare
+python experiments/validated/softplus_training_56bus/run.py calibrate
+python experiments/validated/softplus_training_56bus/run.py train --run-id training_56bus_seed2601 --seed 2601 --initial-slope-factor 0.24 --reward-delta 0.35 --max-interactions 25000 --workers 2 --force-full-budget
+```
+
+Use seeds `2601`, `2602`, and `2603` with separate run IDs for the three 56-bus training runs. Both training entries provide their options through `--help`.
+
+The training directories contain the required model, environment and evaluation helpers. Shared execution utilities are in `experiments/validated/training_runtime/`.
+
 ## Reproducing Paper Results
-We provide standalone scripts and Jupyter notebooks to reproduce the specific experimental scenarios discussed in the manuscript's Results section.
 
-### 1. Inherent Stability and Topology Adaptation of the Learned Policy
-To verify the controller's structural adaptation to dynamic network topology changes:
+| Experiment | Entry |
+| --- | --- |
+| 56-bus recovery time and transient costs, 5000 scenarios | `test_56bus_performance.ipynb` |
+| 123-bus recovery time and transient costs, 5000 scenarios | `test_123_performance.ipynb` |
+| Training efficiency | The 56-bus and 123-bus training entries listed above |
+| 24-hour branch isolation and reconnection, 30 scenarios | `experiments/validated/operational_robustness/reproduce.py` |
 
-- **Evaluation:** Open and execute `test_policy_adaptation.ipynb`.
+For the performance comparisons, run the notebook setup and controller-evaluation cells. The results are saved under `Config.data_path/cache/notebook_results/`.
 
-### 2. Exponential Stability Across Diverse Topologies via One Multi-agent Controller
-To evaluate the comprehensive voltage regulation performance and trajectory stability on the 56-bus system across various topologies:
+For the 30-scenario operational experiment:
 
-- **Evaluation:** Run `test_trajectory.py` for trajectory generation and explore `test_56bus_performance.ipynb` for performance metrics.
+```bash
+python experiments/validated/operational_robustness/reproduce.py prepare
+python experiments/validated/operational_robustness/reproduce.py run
+python experiments/validated/operational_robustness/reproduce.py report
+```
 
-### 3. Scalability and Structural Generalization (IEEE 123-bus)
-To test the framework's performance on the larger, high-dimensional test feeder:
+Results are saved under `Config.data_path/experiments/operational_path_shift/20260916_robustness_validation/subset30/`.
 
-- **Evaluation:** Open `test_123_performance.ipynb` and execute `test_123_trajectory.py`.
+## Supplementary Experiments
 
-### 4. Robustness in Real-World Operational Scenarios
-To evaluate the operational resilience using actual daily load profiles and dynamic PV integration across a 24-hour cycle on the SCE 56-bus system:
-
-- **Evaluation:** Run `test_real_world_56bus.py` and `test_real_world.ipynb` to view the resulting voltage trajectories and power profiles.
-
-### 5. Supplementary Evaluations
-To reproduce the extended analyses and ablation studies detailed in the Supplementary Information:
-* **Impact of Stability Parameter $\alpha$:** Open `test_alpha.ipynb` to evaluate the effect of the theoretical bound parameter $\alpha$ on system dynamics and conservatism.
-* **Robustness to Communication Imperfections:** Execute `perf.ipynb` to analyze the system's tolerance to communication loss, broadcasting delays, and topology information errors.
+| Experiment | Entry |
+| --- | --- |
+| Recovery-time distributions | `test_recovery_over_time_distribution.ipynb` |
+| Topology-dependent policy behavior | `test_policy_adaptation.ipynb` |
+| Voltage and control trajectories | `new_trajectory.ipynb`, `test_policy_output.ipynb` |
+| Number of controllable buses | `subset.ipynb` |
+| Stability slope bound | `test_alpha.ipynb` |
+| Admittance stress | `test_56bus_admittance_stress.ipynb` |
+| Communication loss, delay, and topology-information error | `perf.ipynb`, `test_extra_topo_error.ipynb`, `test_real_world.ipynb` |

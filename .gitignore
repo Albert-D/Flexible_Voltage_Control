@@ -106,3 +106,28 @@ seed.txt
 old_configs/
 
 *.png
+
+# Codex scratch analyses and intermediate outputs
+.codex_tmp/
+
+# Categorized experiment execution views
+tests/_runtime/
+
+# Runtime outputs. Experiment source and compact configs remain trackable.
+logs/
+training_logs/
+topology_info_ablation_logs/
+tests/logs/
+experiments/**/logs/
+experiments/**/runs/
+experiments/**/output/
+experiments/**/outputs/
+experiments/**/checkpoints/
+experiments/**/cache/
+experiments/**/*.pt
+experiments/**/*.pth
+experiments/**/*.ckpt
+
+# Explicitly disposable, unreviewed local material inside an archived capsule.
+# Evidence used for research decisions must remain outside local_only and be tracked.
+experiments/history/**/local_only/
