@@ -61,6 +61,14 @@ python experiments/validated/softplus_training_56bus/run.py train --run-id train
 
 Use seeds `2601`, `2602`, and `2603` with separate run IDs for the three 56-bus training runs. Both training entries provide their options through `--help`.
 
+For the adopted 123-bus learning experiment, use the frozen protocol identified by `experiments/validated/softplus_training_123bus/adopted_run.json`:
+
+```bash
+python experiments/validated/softplus_training_123bus/run.py --run-id delta010_seed2601 --seed 2601 --actor-lr 2.5e-5 --critic-lr 1e-3 --delta-weight 0.01 --noise 0.25 --warm-noise 0.75 --max-interactions 30000 --stop-at 30000 --eval-every 2000 --device cpu --workers 2
+```
+
+This is the October `delta010` configuration used by the current SI, with 30,000 interactions and no output rescaling. The entry checks the protocol hash and writes new runs to a separate reproduction directory. See the adjacent README and manifest for the frozen protocol, selected checkpoint, and `--protocol` / `--output-root` options.
+
 The training directories contain the required model, environment and evaluation helpers. Shared execution utilities are in `experiments/validated/training_runtime/`.
 
 ## Reproducing Paper Results

@@ -212,3 +212,63 @@ def main():
     if args.command=='preflight':preflight()
     else:train(args)
 if __name__=='__main__':main()
+
+
+# Reusable support for the adopted delta010 training entry.
+from config import Config
+from src.softplus_controller import SoftplusControllerSpec, SoftplusTopologyController
+from evaluation123 import recovery15_rollout, recovery15_summary, recovery15_compact_row
+
+RECOVERY15_SPEC = SoftplusControllerSpec(topology_dim=113, num_agents=14, hidden=1024)
+RECOVERY15_MANIFEST = FEEDER / 'adopted_run.json'
+
+def recovery15_actor():
+    return SoftplusTopologyController(RECOVERY15_SPEC)
+
+def recovery15_learner(seed, device, actor_lr, critic_lr):
+    result = Learner(device, seed=seed)
+    # Retain the adopted initialization RNG stream while using the shared actor.
+    rng = torch.get_rng_state()
+    model = recovery15_actor().to(device)
+    model.load_state_dict(result.actor.state_dict(), strict=True)
+    torch.set_rng_state(rng)
+    result.actor = model
+    result.target = copy.deepcopy(model).requires_grad_(False)
+    result.actor_opt = torch.optim.Adam(model.parameters(), lr=actor_lr)
+    result.actor_scheduler = torch.optim.lr_scheduler.MultiStepLR(result.actor_opt, [10000, 20000], gamma=.5)
+    for group in result.critic_opt.param_groups:
+        group['lr'] = critic_lr
+        group['initial_lr'] = critic_lr
+    result.critic_scheduler.base_lrs = [critic_lr]
+    result.critic_scheduler._last_lr = [critic_lr]
+    configure_adam(result, device.type == 'cuda')
+    return result
+
+def load_recovery15_protocol(path):
+    manifest = read(RECOVERY15_MANIFEST)
+    if sha(path) != manifest['protocol']['sha256']:
+        raise ValueError('Protocol differs from the adopted delta010 protocol')
+    protocol = read(path)
+    for name, size in manifest['protocol']['group_sizes'].items():
+        if len(protocol['groups'][name]) != size:
+            raise ValueError('Unexpected protocol group size: ' + name)
+    return protocol
+
+_recovery15_env = _recovery15_model = None
+
+def init_recovery15_worker():
+    global _recovery15_env, _recovery15_model
+    torch.set_num_threads(1)
+    _recovery15_env = Feeder()
+    _recovery15_model = recovery15_actor().eval()
+
+def recovery15_eval_job(payload):
+    state, scenes, keep = payload
+    _recovery15_model.load_state_dict(state, strict=True)
+    rows = [recovery15_rollout(scene, _recovery15_model, _recovery15_env) for scene in scenes]
+    return rows if keep else [recovery15_compact_row(row) for row in rows]
+
+def assess_recovery15(pool, model, scenes, keep=False):
+    state = {key: value.detach().cpu().clone() for key, value in model.state_dict().items()}
+    jobs = [(state, scenes[i:i+8], keep) for i in range(0, len(scenes), 8)]
+    return [row for group in pool.map(recovery15_eval_job, jobs) for row in group]

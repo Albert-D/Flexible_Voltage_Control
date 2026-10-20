@@ -176,3 +176,96 @@ def paired_report(correct,other):
         out[key+'_other_over_correct_median']=float(np.median(b[valid]/a[valid])) if valid.any() else None
     out['recovery_changed_fraction']=float(np.mean([a['recovery']!=b['recovery'] for a,b in zip(correct,other)]))
     return out
+
+
+# Adopted October 2026 learning experiment; historical rollout above stays available.
+def _recovery15_delta(voltage, features, model):
+    with torch.no_grad():
+        return model(torch.as_tensor(voltage, dtype=torch.float32)[None],
+                     torch.as_tensor(features, dtype=torch.float32)[None]).numpy().reshape(-1)
+
+
+def recovery15_rollout(scene, model, env):
+    system, method = "123", "softplus_main"
+    voltage = env.reset(scene).astype(np.float32)
+    q = np.zeros(len(voltage), dtype=np.float32)
+    voltages = [voltage.tolist()]
+    qs = [q.tolist()]
+    deltas = []
+    raw_deltas = []
+    jv = jdelta = violation = 0.
+    clips_step = clips_q = 0
+    max_delta = max_q = max_voltage_violation = 0.
+    initial_safe = bool(np.all((voltage >= .95) & (voltage <= 1.05)))
+    failed = None
+    recovered = initial_safe
+    recovery = 0 if initial_safe else 200
+    if not initial_safe:
+        features = np.asarray(env.features, dtype=np.float32)
+        limit_step, limit_q = (2.5, 25.) if system == "56" else (5., 50.)
+        for step in range(1, 201):
+            jv += 100. * float(np.square(voltage - 1.).sum())
+            local_violation = np.maximum(np.abs(voltage - 1.) - .05, 0)
+            violation += float(local_violation.sum())
+            max_voltage_violation = max(max_voltage_violation, float(local_violation.max()))
+            raw = np.asarray(_recovery15_delta(voltage, features, model), dtype=np.float32)
+            if raw.shape != q.shape or not np.isfinite(raw).all():
+                failed = "invalid_actor_output"
+                break
+            stepped = np.clip(raw, -limit_step, limit_step)
+            new_q = np.clip(q - stepped, -limit_q, limit_q).astype(np.float32)
+            clips_step += int(np.any(np.abs(raw) > limit_step + 1e-6))
+            clips_q += int(np.any(np.abs(q - stepped) > limit_q + 1e-6))
+            applied = q - new_q
+            try:
+                next_voltage = env.step(new_q)
+                if not np.isfinite(next_voltage).all() or next_voltage.min() < .75 or next_voltage.max() > 1.25:
+                    raise ValueError("hard_voltage_bound")
+            except (ValueError, pp.powerflow.LoadflowNotConverged) as exc:
+                failed = str(exc)
+                break
+            jdelta += float(np.square(applied).sum())
+            max_delta = max(max_delta, float(np.abs(applied).max()))
+            max_q = max(max_q, float(np.abs(new_q).max()))
+            raw_deltas.append(raw.tolist())
+            deltas.append(applied.tolist())
+            voltage = np.asarray(next_voltage, dtype=np.float32)
+            q = new_q
+            voltages.append(voltage.tolist())
+            qs.append(q.tolist())
+            if bool(np.all((voltage >= .95) & (voltage <= 1.05))):
+                recovered = True
+                recovery = step
+                break
+    return dict(system=system, method=method, seed=int(scene["seed"]),
+                topology_id=scene["topology_id"], x_id=scene["x_id"], initial_safe=initial_safe,
+                success=bool(recovered and failed is None), failure=failed, recovery=recovery,
+                jv=jv, jdelta=jdelta, voltage_violation=violation,
+                max_voltage_violation=max_voltage_violation, max_delta=max_delta, max_abs_q=max_q,
+                step_clip_events=clips_step, q_clip_events=clips_q,
+                steps_executed=len(deltas), voltages=voltages, q=qs,
+                raw_delta=raw_deltas, applied_delta=deltas)
+
+
+def recovery15_summary(rows):
+    succeeded = [row for row in rows if row["success"]]
+    result = dict(n=len(rows), success=len(succeeded), hard_failures=sum(row["failure"] is not None for row in rows),
+                  horizon_censored=sum(not row["success"] and row["failure"] is None for row in rows),
+                  initial_safe=sum(row["initial_safe"] for row in rows),
+                  step_clip_scenes=sum(row["step_clip_events"] > 0 for row in rows),
+                  q_clip_scenes=sum(row["q_clip_events"] > 0 for row in rows),
+                  powerflow_steps=sum(row["steps_executed"] for row in rows))
+    for key in ("recovery", "jv", "jdelta", "voltage_violation", "max_voltage_violation", "max_delta", "max_abs_q"):
+        # Include horizon-censored trajectories: they still incur cost through 200 steps.
+        values = np.asarray([row[key] for row in rows], dtype=float)
+        result[key + "_median"] = float(np.median(values)) if len(values) else None
+        result[key + "_p90"] = float(np.quantile(values, .9)) if len(values) else None
+    return result
+
+
+def recovery15_compact_row(row):
+    keys = ("topology_id", "x_id", "success", "failure", "initial_safe", "recovery",
+            "jv", "jdelta", "voltage_violation", "max_voltage_violation",
+            "max_delta", "max_abs_q", "step_clip_events", "q_clip_events",
+            "steps_executed")
+    return {key: row[key] for key in keys}

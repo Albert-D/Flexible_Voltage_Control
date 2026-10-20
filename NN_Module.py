@@ -191,7 +191,7 @@ class TopologyNet(nn.Module):
         # x = nn.BatchNorm2d(topology)
         x = torch.relu(self.linear1(topology))
         x = torch.relu(self.linear2(x))
-        x = F.elu(self.linear3(x))
+        x = F.relu(self.linear3(x))  # Keep the topology gain at least one.
 
         return x+1.0
 
