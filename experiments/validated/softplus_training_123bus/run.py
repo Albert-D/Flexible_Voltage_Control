@@ -11,8 +11,8 @@ def train(args):
     device=torch.device(('cuda' if torch.cuda.is_available() else 'cpu') if args.device=='auto' else args.device)
     if device.type=='cuda' and not torch.cuda.is_available(): raise RuntimeError('CUDA is unavailable; select --device cpu')
     source_paths=[Path(__file__), FEEDER/'runtime.py', FEEDER/'evaluation123.py',
-        FEEDER/'model123.py', FEEDER/'learner.py', FEEDER/'environment123.py', FEEDER/'protocol123.py',
-        SPEED/'fast_environment.py', SPEED/'fast_runtime.py', SPEED/'support.py',
+        FEEDER/'model123.py', FEEDER/'environment123.py', FEEDER/'protocol123.py',
+        SPEED/'fast_environment.py', SPEED/'fast_runtime.py', ROOT/'src/common.py',
         ROOT/'src/softplus_controller.py', ROOT/'data/case_123.mat', RECOVERY15_MANIFEST]
     config=dict(args={k:v for k,v in vars(args).items() if k not in ('resume','stop_at')},
         protocol_sha256=sha(protocol_path),sources={str(p):sha(p) for p in source_paths},

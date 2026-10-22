@@ -37,19 +37,19 @@ def selected_cell(path, anchor):
 
 
 def evidence(repo, data_root):
-    source, record = selected_cell(repo / "test_123_performance.ipynb", ANCHOR)
+    source, record = selected_cell(repo / "experiments/validated/performance_evaluation/test_123_performance.ipynb", ANCHOR)
     tree = ast.parse(source)
     statements = []
     for node in tree.body:
         if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call) and ast.unparse(node.value.func) == "plt.rcParams.update":
             break
-        if isinstance(node, ast.ImportFrom) and node.module == "config":
+        if isinstance(node, ast.ImportFrom) and node.module in ("config", "configs.config"):
             continue
         statements.append(node)
     context = {"Config": SimpleNamespace(data_path=str(data_root))}
     exec(compile(ast.fix_missing_locations(ast.Module(body=statements, type_ignores=[])),
-                 str(repo / "test_123_performance.ipynb") + "#statistics_only", "exec"), context)
-    main, main_record = selected_cell(repo / "test_56bus_performance.ipynb", MAIN_ANCHOR)
+                 str(repo / "experiments/validated/performance_evaluation/test_123_performance.ipynb") + "#statistics_only", "exec"), context)
+    main, main_record = selected_cell(repo / "experiments/validated/performance_evaluation/test_56bus_performance.ipynb", MAIN_ANCHOR)
     for node in ast.parse(main).body:
         if isinstance(node, ast.Assign):
             for target in node.targets:

@@ -92,7 +92,7 @@ def saved_metadata(notebook):
                if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Name)
                and node.value.id == 'policy_net' and isinstance(node.slice, ast.Constant)}
     assert indices == {2}, indices
-    setup = ''.join(document['cells'][0]['source'])
+    setup = ''.join(document['cells'][1]['source'])
     assignment = next(node for node in ast.walk(ast.parse(setup)) if isinstance(node, ast.Assign)
                       and any(isinstance(target, ast.Name) and target.id == 'injection_bus' for target in node.targets))
     ids = ast.literal_eval(assignment.value.left.args[0])

@@ -9,8 +9,9 @@ import json
 import time
 import numpy as np
 import pandapower as pp
-from environment123 import Feeder, BUS, SWITCH_LINES, sample_scene, save_json
-from experiments.validated.training_runtime.support import safe_reset
+from environment123 import Feeder, BUS, SWITCH_LINES, sample_scene
+from src.common import save_json
+from src.runtime.fast_runtime import safe_reset
 
 def draw_graph(env,rng,excluded,counters):
     for _ in range(200000):

@@ -131,3 +131,68 @@ experiments/**/*.ckpt
 # Explicitly disposable, unreviewed local material inside an archived capsule.
 # Evidence used for research decisions must remain outside local_only and be tracked.
 experiments/history/**/local_only/
+
+# Local historical alternatives and internal release material (kept on disk).
+/configs/config_123bus.py
+/configs/environments/conda.yaml
+/configs/environments/pandapower.yaml
+/configs/environments/requirements_minimal.txt
+/data/TestCase33.mat
+/data/case_13.mat
+/docs/public_layout_migration.json
+/docs/reference/realdata.pdf
+/docs/reference/temp-plot.html
+/experiments/validated/fixed_x/README.md
+/experiments/validated/fixed_x/evaluate.py
+/experiments/validated/fixed_x/train.py
+/experiments/validated/fixed_x/train_weighted.py
+/experiments/validated/operational_robustness/simulation/review.py
+/experiments/validated/performance_evaluation/test_123_trajectory.py
+/experiments/validated/performance_evaluation/test_56bus_trajectory.py
+/experiments/validated/performance_training/voltagectrl.ipynb
+/experiments/validated/real_world_evaluation/test_real_world_56bus.py
+/experiments/validated/si_robustness_figures/verify_figure.py
+/experiments/validated/si_robustness_figures/verify_performance_output.py
+/experiments/validated/si_robustness_figures/verify_recovery_trajectory.py
+/experiments/validated/supplementary_evaluation/imperfect_information/perf.ipynb
+/experiments/validated/supplementary_evaluation/network_shifts/test_56bus_topology_shift_step300.ipynb
+/experiments/validated/topology_admittance_shift/README.md
+/experiments/validated/topology_admittance_shift/test_56bus_topology_admittance_shift.py
+/experiments/validated/topology_admittance_shift/test_topology_change.py
+/src/models/Hyper_Net_Module.py
+
+# Local environments, credentials and generated runtime outputs.
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+cache/
+checkpoints/
+saved_models/
+outputs/
+*.pt
+*.pth
+*.ckpt
+*.pkl
+*.pkl.gz
+*.npz
+# Required archived input for the published imperfect-information figure.
+!/data/reference/imperfect_results.pkl.gz
+
+# Local agent instructions and private project material.
+/AGENTS.md
+.codex/
+.agents/
+/private_meeting_notes/
+/submission_materials/
+
+# Replaced by shared modules; original local files retained for reference.
+/experiments/validated/softplus_training_56bus/reference.py
+/experiments/validated/softplus_training_123bus/learner.py
+/experiments/validated/softplus_training_123bus/prepare.py
+/src/runtime/support.py
+/experiments/validated/operational_robustness/screening/review_operational_direction_screen.py
+/experiments/validated/operational_robustness/screening/run_operational_direction_screen.py
+/experiments/validated/operational_robustness/screening/run_operational_priority_pilot.py
+/experiments/validated/operational_robustness/simulation/validation_subset30.py

@@ -13,93 +13,39 @@ To reproduce the training and evaluation results, we recommend a machine with th
 ### Software Requirements
 The codebase is tested on Windows operating systems using Python 3.11+. 
 
-You can set up the environment using `uv` or `conda`. We provide configuration files for both package managers.
+Install the dependencies using:
 
-**Option 1: Using uv (Recommended)**
 ```bash
-uv pip install -r requirements.txt
-```
-
-**Option 2: Using Conda**
-```bash
-conda env create -f "conda environment.yaml"
-conda activate PowerSystem
+python -m pip install -r requirements.txt
 ```
 
 ## Repository Structure
-* `data/`: Grid models and daily load/PV profiles.
-* `Environment.py`: The 56-bus and 123-bus power-flow environments.
-* `NN_Module.py`: RLC-FT and Safe-DDPG policy networks used by the performance evaluations.
-* `src/softplus_controller.py`: Shared Softplus RLC-FT architecture.
-* `Train.py`, `DDPG.py`, `TD3.py`, and `Utils.py`: Controller training and replay-buffer implementation.
-* `experiments/`: Training-efficiency and operational experiment entries.
-* `config.py`: Hyperparameters and the checkpoint/result directory, `Config.data_path`.
 
-Run commands from the repository root. Set `Config.data_path` to your checkpoint and result directory, and set the controller checkpoint paths in the evaluation notebooks' setup cells.
+The root exposes two main entries, [train.py](train.py) and [evaluate.py](evaluate.py).
+Shared code and individual experiments live in the following directories:
+
+| Directory | Contents |
+| --- | --- |
+| src/ | Shared models, power-flow environments, learning algorithms and accelerated runtime |
+| configs/ | System configurations and hyperparameters |
+| experiments/validated/ | Training, performance evaluation, operational and supplementary experiments, grouped by topic |
+| data/ | Grid models, daily profiles and historical reference data |
+| tests/ | Software and entry-point checks |
+| docs/ | [Detailed code map](docs/CODE_LAYOUT.md) and reference material |
+
+Run commands from the repository root. Set Config.data_path in configs/config.py
+to your checkpoint and result directory, and set controller checkpoint paths in
+the evaluation notebooks' setup cells. Executed notebooks are saved under the
+configured result directory.
 
 ## Training a New Model
-For the controllers used in the performance evaluations, select `ENV = '56bus'` or `ENV = '123bus'` in `Train.py`, set the hyperparameters in `config.py`, and run:
+For the controllers used in the performance evaluations, select `ENV = '56bus'` or `ENV = '123bus'` in `experiments/validated/performance_training/train.py`, set the hyperparameters in `configs/config.py`, and run:
 
 ```bash
-python Train.py
+python train.py performance
 ```
-
-The training-efficiency experiments use the following entries:
-
-| System | Training entry |
-| --- | --- |
-| 56-bus | `experiments/validated/softplus_training_56bus/run.py` |
-| 123-bus | `experiments/validated/softplus_training_123bus/run.py` |
-
-For example, to train a 56-bus controller with the training-efficiency settings:
-
-```bash
-python experiments/validated/softplus_training_56bus/run.py prepare
-python experiments/validated/softplus_training_56bus/run.py calibrate
-python experiments/validated/softplus_training_56bus/run.py train --run-id training_56bus_seed2601 --seed 2601 --initial-slope-factor 0.24 --reward-delta 0.35 --max-interactions 25000 --workers 2 --force-full-budget
-```
-
-Use seeds `2601`, `2602`, and `2603` with separate run IDs for the three 56-bus training runs. Both training entries provide their options through `--help`.
-
-For the adopted 123-bus learning experiment, use the frozen protocol identified by `experiments/validated/softplus_training_123bus/adopted_run.json`:
-
-```bash
-python experiments/validated/softplus_training_123bus/run.py --run-id delta010_seed2601 --seed 2601 --actor-lr 2.5e-5 --critic-lr 1e-3 --delta-weight 0.01 --noise 0.25 --warm-noise 0.75 --max-interactions 30000 --stop-at 30000 --eval-every 2000 --device cpu --workers 2
-```
-
-This is the October `delta010` configuration used by the current SI, with 30,000 interactions and no output rescaling. The entry checks the protocol hash and writes new runs to a separate reproduction directory. See the adjacent README and manifest for the frozen protocol, selected checkpoint, and `--protocol` / `--output-root` options.
-
-The training directories contain the required model, environment and evaluation helpers. Shared execution utilities are in `experiments/validated/training_runtime/`.
 
 ## Reproducing Paper Results
 
-| Experiment | Entry |
-| --- | --- |
-| 56-bus recovery time and transient costs, 5000 scenarios | `test_56bus_performance.ipynb` |
-| 123-bus recovery time and transient costs, 5000 scenarios | `test_123_performance.ipynb` |
-| Training efficiency | The 56-bus and 123-bus training entries listed above |
-| 24-hour branch isolation and reconnection, 30 scenarios | `experiments/validated/operational_robustness/reproduce.py` |
-
-For the performance comparisons, run the notebook setup and controller-evaluation cells. The results are saved under `Config.data_path/cache/notebook_results/`.
-
-For the 30-scenario operational experiment:
-
-```bash
-python experiments/validated/operational_robustness/reproduce.py prepare
-python experiments/validated/operational_robustness/reproduce.py run
-python experiments/validated/operational_robustness/reproduce.py report
-```
-
-Results are saved under `Config.data_path/experiments/operational_path_shift/20260916_robustness_validation/subset30/`.
-
-## Supplementary Experiments
-
-| Experiment | Entry |
-| --- | --- |
-| Recovery-time distributions | `test_recovery_over_time_distribution.ipynb` |
-| Topology-dependent policy behavior | `test_policy_adaptation.ipynb` |
-| Voltage and control trajectories | `new_trajectory.ipynb`, `test_policy_output.ipynb` |
-| Number of controllable buses | `subset.ipynb` |
-| Stability slope bound | `test_alpha.ipynb` |
-| Admittance stress | `test_56bus_admittance_stress.ipynb` |
-| Communication loss, delay, and topology-information error | `perf.ipynb`, `test_extra_topo_error.ipynb`, `test_real_world.ipynb` |
+See the [reproduction guide](docs/REPRODUCING_RESULTS.md) for training-efficiency
+settings, performance comparisons, operational tests and supplementary experiments.

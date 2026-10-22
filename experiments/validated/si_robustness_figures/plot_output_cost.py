@@ -205,17 +205,16 @@ def main():
     target = args.output / "fig04_output_cost_preview.pdf"
     records, boxes = render(backup, target, args.font_dir)
     checks = verify(target, records, boxes)
-    notebook = args.repo / "test_policy_output.ipynb"
+    notebook = args.repo / "experiments/validated/supplementary_evaluation/policy/test_policy_output.ipynb"
     book = json.loads(notebook.read_text(encoding="utf-8"))
-    cell = book["cells"][2]
+    cell = book["cells"][3]
     record = {"status": "preview_only_not_adopted", "original_pdf_sha256": sha(args.source),
               "source_code_sha256": sha(__file__), "output_sha256": sha(target),
               "dimensions_pt": [WIDTH, HEIGHT], "source_plot_boxes": boxes, "target_plot_boxes": BOXES,
               "verification": checks,
               "code_family": {"notebook": str(notebook), "sha256": sha(notebook),
-                              "plot_cell_one_based": 3, "simulation_cell_one_based": 2,
+                              "plot_cell_one_based": 4, "simulation_cell_one_based": 3,
                               "plot_cell_sha256": hashlib.sha256("".join(cell["source"]).encode()).hexdigest(),
-                              "legacy_entry": str(args.repo / "test_56bus_trajectory.py"),
                               "historical_commit_checked": "3c4d36f",
                               "saved_traces_match_published_pdf": False},
               "provenance": "Published PDF vector paths, not reconstructed raw simulation arrays. Current and earliest tracked notebook store different negative-Q/cost traces.",

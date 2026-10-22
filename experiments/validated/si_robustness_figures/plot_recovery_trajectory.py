@@ -112,7 +112,7 @@ def export(fig, output, stem):
 
 
 def recovery(args, manifest):
-    notebook = args.repo / "test_recovery_over_time_distribution.ipynb"
+    notebook = args.repo / "experiments/validated/supplementary_evaluation/recovery/test_recovery_over_time_distribution.ipynb"
     _, source = notebook_cell(notebook, "# Paper figure: comparison with external baselines only")
     manifest["sources"]["recovery"] = source
     specs = {"56bus": [("56bus_linear", "base_succ_list"),
@@ -227,7 +227,7 @@ def recovery(args, manifest):
 
 
 def trajectory(args, manifest):
-    notebook = args.repo / "new_trajectory.ipynb"
+    notebook = args.repo / "experiments/validated/supplementary_evaluation/policy/new_trajectory.ipynb"
     cell, source = notebook_cell(notebook, "# Figure: Enhanced Nature-Style Voltage Trajectory Comparison")
     saved = [o.get("data", {}).get("application/vnd.plotly.v1+json") for o in cell.get("outputs", [])]
     payload = next(p for p in saved if p)

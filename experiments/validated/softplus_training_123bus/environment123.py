@@ -7,20 +7,17 @@ import sys as _migration_sys
 _migration_sys.path.insert(0, str(_MigrationPath(__file__).resolve().parents[3]))
 import copy
 import hashlib
-import json
 from pathlib import Path
 import numpy as np
 import pandapower as pp
+
+from src.common import save_json
 
 BUS = np.array([9,10,15,19,32,35,47,58,65,74,82,91,103,60])
 PV_BUS = list(BUS)+[13,14,18]
 SWITCH_LINES = [0,1,3,4,5,7,20,22,27,31,25,29,30,35,36,37,38,40,42,44,46,47,48,16,51,53,62,65,66,67,75,79,81,83,85,88,89,90,91,92,93,94,99,101,104]
 ROOT = Path('D:/Code/Python/Flexible_Voltage_Control/experiments/controller_retraining_2026-09-11')
 
-def save_json(path, data):
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False, allow_nan=False), encoding='utf-8')
 
 class Feeder:
     def __init__(self):

@@ -152,12 +152,12 @@ def stress_preview(data_root, output):
 
 
 def load_operational(repo):
-    notebook = repo / "test_real_world.ipynb"
+    notebook = repo / "experiments/validated/real_world_evaluation/test_real_world.ipynb"
     nb = json.loads(notebook.read_text(encoding="utf-8"))
-    cell = nb["cells"][9]
+    cell = nb["cells"][10]
     spec = next(o["data"]["application/vnd.plotly.v1+json"]
                 for o in cell["outputs"] if "application/vnd.plotly.v1+json" in o.get("data", {}))
-    cache = repo / "imperfect_results.pkl.gz"
+    cache = repo / "data/reference/imperfect_results.pkl.gz"
     with gzip.open(cache, "rb") as stream:
         data = pickle.load(stream)
     assert data["topology_change_step"] == 7000
@@ -177,7 +177,7 @@ def load_operational(repo):
             np.testing.assert_array_equal(z["y"], y[6850:7150])
             series.append({"info": info, "bus": bus, "x": x, "y": y})
     return spec, series, {"inputs": {str(p): digest(p) for p in [notebook, cache]},
-                          "notebook_cell": 10, "cache_matches_all_saved_traces": True,
+                          "notebook_cell": 11, "cache_matches_all_saved_traces": True,
                           "samples_per_daily_trace": 14421, "zoom_steps": [6850, 7149],
                           "event_step": 7000,
                           "trace_hashes": [{"bus": s["bus"], "info": s["info"],

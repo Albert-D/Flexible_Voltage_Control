@@ -17,13 +17,14 @@ warnings.filterwarnings("ignore", category=FutureWarning, module=r"pandapower\..
 
 
 CODE_ROOT = Path(__file__).resolve().parents[3]
-SPEED = CODE_ROOT / "experiments/validated/training_runtime"
+SPEED = CODE_ROOT / "src/runtime"
 for path in (CODE_ROOT, SPEED):
     sys.path.insert(0, str(path))
 
-from fast_environment import feeder_class
-from retraining_environment import BUS, SWITCH_LINES, Feeder, sample_scene, save_json
-from experiments.validated.training_runtime.support import safe_reset
+from src.runtime.fast_environment import feeder_class
+from src.environments.retraining_environment import BUS, SWITCH_LINES, Feeder, sample_scene
+from src.common import sha256_file as sha, save_json
+from src.runtime.fast_runtime import safe_reset
 
 def draw_graph(env,rng,excluded,counters):
     for _ in range(200000):
@@ -96,10 +97,6 @@ def scenes_for_operating_point(env, topologies, rng, seed, counters):
 OUT = Path("D:/Code/Python/Flexible_Voltage_Control/experiments/unified_softplus_retraining")
 PROTOCOL = OUT / "protocol.json"
 FastFeeder = feeder_class(Feeder, BUS, "lightsim_recycle")
-
-
-def sha(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def full_x_id(features) -> str:

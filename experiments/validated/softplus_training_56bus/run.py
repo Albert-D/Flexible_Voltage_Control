@@ -26,13 +26,14 @@ warnings.filterwarnings("ignore", category=FutureWarning, module=r"pandapower\..
 
 HERE = Path(__file__).resolve().parent
 CODE_ROOT = HERE.parents[2]
-SPEED = CODE_ROOT / "experiments/validated/training_runtime"
+SPEED = CODE_ROOT / "src/runtime"
 for path in (CODE_ROOT, SPEED, HERE):
     sys.path.insert(0, str(path))
 
-from fast_environment import feeder_class
-from fast_runtime import ActorMirror, CachedReplay, configure_adam, sample_replay_fast
-from retraining_environment import BUS, Feeder, save_json
+from src.runtime.fast_environment import feeder_class
+from src.runtime.fast_runtime import ActorMirror, CachedReplay, configure_adam, sample_replay_fast
+from src.environments.retraining_environment import BUS, Feeder
+from src.common import sha256_file as sha, read_json as read, append_jsonl as append, save_json
 
 sys.path.insert(0, str(HERE))
 from evaluation import (
@@ -60,18 +61,6 @@ FastFeeder = feeder_class(Feeder, BUS, "lightsim_recycle")
 NEGATIVE_CONTROL = Path("D:/Code/Python/Flexible_Voltage_Control/experiments/topology_efficiency/seed2601_weak_lr_25e6_long/checkpoint_024243.pt")
 POSITIVE_CONTROL = Path("D:/Code/Python/Flexible_Voltage_Control/experiments/controller_retraining_2026-09-11/topology_sensitive_controller_v2/runs/pilot_b1_seed2601_hard_state_replay/checkpoint_001920.pt")
 
-
-def sha(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def read(path: Path):
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def append(path: Path, row) -> None:
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(row, allow_nan=False) + "\n")
 
 
 def actor_from_checkpoint(path: Path):
@@ -153,10 +142,9 @@ def source_manifest():
         HERE / "README.md", HERE / "model.py", HERE / "protocol.py",
         HERE / "evaluation.py", HERE / "run.py",
         CODE_ROOT / "src/softplus_controller.py",
-        CODE_ROOT / "retraining_environment.py",
+        CODE_ROOT / "src/environments/retraining_environment.py",
         SPEED / "fast_environment.py", SPEED / "fast_runtime.py",
-        HERE / "reference.py",
-        SPEED / "support.py",
+        CODE_ROOT / "src/common.py",
         CODE_ROOT / "data/SCE_56bus.mat",
     ]
     return {str(path): sha(path) for path in sources}

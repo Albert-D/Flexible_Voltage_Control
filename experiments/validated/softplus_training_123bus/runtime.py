@@ -9,26 +9,23 @@ from concurrent.futures import ProcessPoolExecutor
 ROOT=Path(__file__).resolve().parents[3]
 sys.path.insert(0,str(ROOT))
 FEEDER=Path(__file__).resolve().parent
-SPEED=ROOT/'experiments/validated/training_runtime'
+SPEED=ROOT/'src/runtime'
 sys.path[:0]=[str(FEEDER),str(SPEED)]
 import numpy as np
 import torch
 import pandapower as pp
-from environment123 import Feeder as OriginalFeeder,BUS,save_json
+from environment123 import Feeder as OriginalFeeder,BUS
+from src.common import sha256_file as sha, read_json as read, append_jsonl as append, save_json
 from model123 import Controller,Learner
 from evaluation123 import load_reference,rollout,summary,act
 from protocol123 import draw_graph,scene_for
-from experiments.validated.training_runtime.support import initialize_weak_actor
-from fast_environment import feeder_class
-from fast_runtime import CachedReplay,sample_replay_fast,ActorMirror,configure_adam
+from src.runtime.fast_runtime import initialize_weak_actor
+from src.runtime.fast_environment import feeder_class
+from src.runtime.fast_runtime import CachedReplay,sample_replay_fast,ActorMirror,configure_adam
 Feeder=feeder_class(OriginalFeeder,BUS,'lightsim_recycle')
 OUT=Path('D:/Code/Python/Flexible_Voltage_Control/experiments/123bus_pilot_2026-09-16')
 PROTOCOL=OUT.parent/'topology_efficiency/seed2601_123_stream_v3/protocol.json'
 torch.set_num_threads(1)
-def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
-def read(p):return json.loads(Path(p).read_text(encoding='utf-8'))
-def append(p,row):
-    with Path(p).open('a',encoding='utf-8') as f:f.write(json.dumps(row,allow_nan=False)+'\n')
 
 def gains(actor,scenes):
     xs=torch.tensor([s['features'] for s in scenes],dtype=torch.float32)
@@ -91,7 +88,7 @@ def train(args):
     run=OUT/args.run_id;started=time.perf_counter()
     protocol=read(PROTOCOL);protocol_hash=sha(PROTOCOL);excluded=set(protocol['excluded_graphs'])
     source_paths=[Path(__file__),SPEED/'fast_environment.py',SPEED/'fast_runtime.py',FEEDER/'environment123.py',FEEDER/'model123.py',FEEDER/'evaluation123.py',FEEDER/'protocol123.py',
-                  FEEDER/'learner.py',SPEED/'support.py',ROOT/'src/softplus_controller.py',ROOT/'data/case_123.mat']
+                  ROOT/'src/common.py',ROOT/'src/softplus_controller.py',ROOT/'data/case_123.mat']
     config=dict(args={k:v for k,v in vars(args).items() if k not in ('resume','stop_at')},protocol_sha256=protocol_hash,
                 sources={str(p):sha(p) for p in source_paths},from_scratch=True,output_scale=1.,
                 runtime=dict(powerflow='lightsim_recycle',adam_fused=True,actor_inference='synchronized_cpu',replay='cached_severity',threads=1),
@@ -215,7 +212,7 @@ if __name__=='__main__':main()
 
 
 # Reusable support for the adopted delta010 training entry.
-from config import Config
+from configs.config import Config
 from src.softplus_controller import SoftplusControllerSpec, SoftplusTopologyController
 from evaluation123 import recovery15_rollout, recovery15_summary, recovery15_compact_row
 

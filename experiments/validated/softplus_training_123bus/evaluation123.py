@@ -19,15 +19,14 @@ from pathlib import Path
 import numpy as np
 import torch
 import pandapower as pp
-from environment123 import Feeder, ROOT, BUS, save_json
+from environment123 import Feeder, ROOT, BUS
+from src.common import sha256_file as sha, save_json
 from model123 import Controller, Reference, Learner, Replay, voltage_branch
 
 BASE_ROOT=ROOT
 ROOT=BASE_ROOT/'recovery_training_v4'
 
 REF_ROOT=Path('D:/Code/Python/Flexible_Voltage_Control/check_points/policy_net/2025-08-19')
-
-def sha(path): return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 def load_reference(device):
     paths=[REF_ROOT/f'Step_950_Seed_2_a{i}.pth' for i in range(14)]
