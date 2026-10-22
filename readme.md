@@ -1,6 +1,6 @@
-# RLC-FT: Provably Stable Multi-Agent Reinforcement Learning for Voltage Control
+# One Multi-Agent Controller Suffices to Provably Stabilize Voltage over Flexible Grid Topologies
 
-This repository contains the official implementation of the RLC-FT framework. RLC-FT is a multi-agent reinforcement learning controller designed for voltage regulation in distribution grids under flexible network topologies. The architecture guarantees voltage safety by construction, satisfying stability conditions without relying on external safety filters or post-hoc optimization steps.
+This repository contains the official implementation of RLC-FT accompanying the paper above. RLC-FT is a multi-agent reinforcement learning controller designed for voltage regulation in distribution grids under flexible network topologies. The architecture guarantees voltage safety by construction, satisfying stability conditions without relying on external safety filters or post-hoc optimization steps.
 
 ## System Requirements
 
